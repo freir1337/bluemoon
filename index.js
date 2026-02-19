@@ -21,6 +21,8 @@ import { initPromptEditor } from './src/ui/promptEditor.js';
 import { initRelationshipUI, displayRelationships } from './src/ui/relationshipUI.js';
 import { compilePrompts } from './src/systems/generation/promptCompiler.js';
 
+export const extensionName = 'third-party/bluemoon';
+
 const EXTENSION_NAME = 'bluemoon';
 const EXTENSION_PATH = `third-party/${EXTENSION_NAME}`;
 
