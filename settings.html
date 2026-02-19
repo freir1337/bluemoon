@@ -1,0 +1,44 @@
+<div id="bluemoon-settings-wrapper">
+    <div class="inline-drawer">
+        <div class="inline-drawer-toggle inline-drawer-header">
+            <b>🌙 BlueMoon — Черты и отношения персонажей</b>
+            <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+        </div>
+        <div class="inline-drawer-content">
+            <div style="padding: 10px 0;">
+                <label class="checkbox_label" title="Включить или отключить расширение BlueMoon">
+                    <input id="bluemoon-enabled-toggle" type="checkbox" />
+                    <span>Включить BlueMoon</span>
+                </label>
+                <hr class="sysHR"/>
+                <div style="margin-bottom: 10px;">
+                    <label for="bluemoon-panel-position" style="display:block; margin-bottom:4px;">Положение панели на ПК:</label>
+                    <select id="bluemoon-panel-position" class="text_pole" style="width:100%;">
+                        <option value="right">Справа</option>
+                        <option value="left">Слева</option>
+                    </select>
+                </div>
+                <div style="margin-bottom: 10px;">
+                    <label style="display:block; margin-bottom:4px;">Сила изменения отношений: <span id="bluemoon-rel-update-strength-val">5</span>%</label>
+                    <input id="bluemoon-rel-update-strength" type="range" min="1" max="20" value="5" style="width:100%;" />
+                </div>
+                <label class="checkbox_label">
+                    <input id="bluemoon-auto-rel" type="checkbox" />
+                    <span>ИИ автоматически меняет отношения</span>
+                </label>
+                <label class="checkbox_label">
+                    <input id="bluemoon-show-prompt" type="checkbox" />
+                    <span>Показывать промпт в чате (отладка)</span>
+                </label>
+                <hr class="sysHR"/>
+                <div class="flex-container">
+                    <input id="bluemoon-open-panel-btn" class="menu_button" type="button" value="🌙 Открыть панель BlueMoon" />
+                    <input id="bluemoon-reset-all-btn" class="menu_button" type="button" value="🔄 Сбросить всё" />
+                </div>
+                <small style="color: var(--SmartThemeQuoteColor, #aaa); margin-top: 8px; display: block;">
+                    Также используйте кнопку 🌙 в правом нижнем углу экрана
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
