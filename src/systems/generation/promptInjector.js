@@ -4,6 +4,8 @@
  */
 
 import { compilePrompts } from './promptCompiler.js';
+import { setExtensionPrompt, extension_prompt_types } from '../../../extensions.js';
+import { eventSource } from '../../../../script.js';
 
 let injectionActive = false;
 
@@ -41,7 +43,7 @@ async function injectPromptsBeforeGeneration() {
             setExtensionPrompt(
                 'bluemoon-traits',
                 compiledPrompt,
-                extension_prompt_types.IN_CHAT,
+                extension_prompt_types.IN_CHAT, // or AFTER_CONTEXT depending on ST version
                 1, // Priority
                 false
             );

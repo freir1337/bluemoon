@@ -10,6 +10,7 @@ export let extensionState = {
     currentCharacterRelationships: {},
     allCharacterData: {}, // Indexed by character ID
     panelCollapsed: false,
+    panelPosition: 'right', // Added missing field
     lastUpdated: null,
 };
 

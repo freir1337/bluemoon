@@ -17,7 +17,8 @@ export class Internationalization {
 
     async loadTranslations(lang) {
         try {
-            const url = `/scripts/extensions/third-party/bluemoon/locales/${lang}.json`;
+            // Use relative path from the extension root
+            const url = `./locales/${lang}.json`;
             const response = await fetch(url);
             if (response.ok) {
                 this.translations = await response.json();

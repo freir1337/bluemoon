@@ -5,6 +5,7 @@
 
 import { loadTraitGroups, saveTraitGroups } from '../core/persistence.js';
 import { i18n } from '../core/i18n.js';
+import { openPromptEditor } from './promptEditor.js'; // Import the function
 
 let traitGroups = [];
 
@@ -145,6 +146,15 @@ function addNotesSection(container) {
         localStorage.setItem('bluemoon_notes', notesTA.value);
         console.log('[BlueMoon] Notes saved');
     });
+
+    // Optional: handle add note button
+    const addNoteBtn = notesDiv.querySelector('#bluemoon-add-note');
+    if (addNoteBtn) {
+        addNoteBtn.addEventListener('click', () => {
+            // For now just focus the textarea
+            notesTA.focus();
+        });
+    }
 }
 
 /**
@@ -166,14 +176,6 @@ function addRelationshipsSection(container) {
     `;
 
     container.appendChild(relDiv);
-}
-
-/**
- * Open prompt editor modal
- */
-function openPromptEditor(trait, groupId) {
-    console.log('[BlueMoon] Opening prompt editor for:', trait.id);
-    // Implementation will be in promptEditor.js
 }
 
 export { renderSliders, createTraitSlider };

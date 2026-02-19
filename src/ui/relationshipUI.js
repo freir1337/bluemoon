@@ -4,6 +4,7 @@
  */
 
 import { relationshipTypes } from '../core/config.js';
+import { getContext } from '../../../extensions.js';
 
 export async function initRelationshipUI() {
     console.log('[BlueMoon] Initializing relationship UI...');
@@ -169,7 +170,7 @@ export function openRelationshipEditor(otherCharId, relData) {
             <textarea 
                 id="rel-notes" 
                 class="bluemoon-textarea"
-                placeholder="История, предыстория, со��ытия..."
+                placeholder="История, предыстория, события..."
             >${relData.notes || ''}</textarea>
         </div>
 
@@ -266,8 +267,10 @@ function deleteRelationship(otherCharId) {
  * Get character name by ID
  */
 function getCharacterName(charId) {
-    // Implementation will use SillyTavern's character system
-    return `Персонаж ${charId}`;
+    const context = getContext();
+    const characters = context.characters || [];
+    const character = characters.find(c => c.id == charId); // may be string or number
+    return character?.name || `Персонаж ${charId}`;
 }
 
 export { displayRelationships, createRelationshipPreview, saveRelationship };

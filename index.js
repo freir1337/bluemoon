@@ -3,7 +3,7 @@
  * Main extension entry point
  */
 
-import { getContext, renderExtensionTemplateAsync } from '../../../extensions.js';
+import { registerExtension, getContext, renderExtensionTemplateAsync } from '../../../extensions.js';
 import { eventSource, event_types, chat, saveSettingsDebounced } from '../../../../script.js';
 
 // ============ CORE MODULES ============
@@ -25,6 +25,9 @@ import { compilePrompts } from './src/systems/generation/promptCompiler.js';
 // ============ CONSTANTS ============
 const EXTENSION_NAME = 'bluemoon';
 const EXTENSION_PATH = 'third-party/bluemoon';
+
+// Register extension
+registerExtension(EXTENSION_NAME, { path: EXTENSION_PATH });
 
 /**
  * Initialize extension UI

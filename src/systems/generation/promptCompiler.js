@@ -4,6 +4,8 @@
  */
 
 import { loadTraitGroups } from '../../core/persistence.js';
+import { relationshipTypes } from '../../core/config.js';
+import { getContext } from '../../../../extensions.js';
 
 /**
  * Compile all active traits into a system prompt
@@ -107,6 +109,12 @@ function compileRelationshipsContext() {
     });
 
     return relContextLines.join('\n');
+}
+
+// Helper to get character name (can be imported from relationshipUI or redefined)
+function getCharacterName(charId) {
+    // Simple fallback – in real scenario, you'd get from context
+    return `Character ${charId}`;
 }
 
 export { compileTraitPrompt, compileRelationshipsContext };
