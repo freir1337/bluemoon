@@ -4,7 +4,7 @@
  */
 
 import { registerExtension, getContext, renderExtensionTemplateAsync } from '../../../extensions.js';
-import { eventSource, event_types, chat, saveSettingsDebounced } from '../../../../script.js';
+import { eventSource, event_types } from '../../../../script.js';
 
 // ============ CORE MODULES ============
 import { extensionConfig } from './src/core/config.js';
@@ -24,9 +24,9 @@ import { compilePrompts } from './src/systems/generation/promptCompiler.js';
 
 // ============ CONSTANTS ============
 const EXTENSION_NAME = 'bluemoon';
-const EXTENSION_PATH = 'third-party/bluemoon';
+const EXTENSION_PATH = 'bluemoon'; // Имя папки (лежит в third-party/bluemoon)
 
-// Register extension
+// Регистрация расширения
 registerExtension(EXTENSION_NAME, { path: EXTENSION_PATH });
 
 /**
@@ -44,7 +44,7 @@ async function initUI() {
     }
 
     try {
-        // Load HTML template
+        // Load HTML template (второй параметр — имя файла без .html)
         const templateHtml = await renderExtensionTemplateAsync(EXTENSION_PATH, 'template');
         $('body').append(templateHtml);
 
