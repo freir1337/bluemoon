@@ -7,20 +7,20 @@ import { getContext, renderExtensionTemplateAsync } from '../../../extensions.js
 import { eventSource, event_types, chat, saveSettingsDebounced } from '../../../../script.js';
 
 // ============ CORE MODULES ============
-import { extensionConfig } from './bluemoon/src/core/config.js';
-import { extensionState, updateState } from './bluemoon/src/core/state.js';
-import { loadSettings, saveSettings } from './bluemoon/src/core/persistence.js';
-import { i18n } from './bluemoon/src/core/i18n.js';
+import { extensionConfig } from './src/core/config.js';
+import { extensionState, updateState } from './src/core/state.js';
+import { loadSettings, saveSettings } from './src/core/persistence.js';
+import { i18n } from './src/core/i18n.js';
 
 // ============ UI MODULES ============
-import { initFloatingPanel } from './bluemoon/src/ui/floatingPanel.js';
-import { initSliders } from './bluemoon/src/ui/sliders.js';
-import { initPromptEditor } from './bluemoon/src/ui/promptEditor.js';
-import { initRelationshipUI } from './bluemoon/src/ui/relationshipUI.js';
+import { initFloatingPanel } from './src/ui/floatingPanel.js';
+import { initSliders } from './src/ui/sliders.js';
+import { initPromptEditor } from './src/ui/promptEditor.js';
+import { initRelationshipUI } from './src/ui/relationshipUI.js';
 
 // ============ GENERATION MODULES ============
-import { initPromptInjection } from './bluemoon/src/systems/generation/promptInjector.js';
-import { compilePrompts } from './bluemoon/src/systems/generation/promptCompiler.js';
+import { initPromptInjection } from './src/systems/generation/promptInjector.js';
+import { compilePrompts } from './src/systems/generation/promptCompiler.js';
 
 // ============ CONSTANTS ============
 const EXTENSION_NAME = 'bluemoon';
