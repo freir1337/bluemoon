@@ -1,650 +1,608 @@
-/* ============================================
-   BLUEMOON - CHARACTER TRAITS & RELATIONSHIPS
-   ============================================ */
+/* BlueMoon v2.0 — Customizable Theme Variables & Mobile-First UI */
 
 :root {
-    --bm-primary: #6366f1;
-    --bm-secondary: #8b5cf6;
-    --bm-accent: #ec4899;
-    --bm-dark: #1a1a2e;
-    --bm-light: #f1f5f9;
-    --bm-border: #e2e8f0;
-    --bm-text: #0f172a;
-    --bm-text-light: #64748b;
+    --bm-bg-sheet: #171a26;
+    --bm-bg-card: rgba(26, 30, 44, 0.94);
+    --bm-bg-elevated: rgba(38, 43, 62, 0.96);
+    --bm-bg-soft: rgba(99, 102, 241, 0.16);
+    --bm-border: rgba(255, 255, 255, 0.12);
+    --bm-border-focus: rgba(129, 140, 248, 0.75);
+    --bm-accent: #6366f1;
+    --bm-accent-2: #a855f7;
+    --bm-text-main: #f4f6fb;
+    --bm-text-muted: #a6b0c5;
+    --bm-radius-xl: 22px;
+    --bm-radius-lg: 16px;
+    --bm-radius-md: 12px;
+    --bm-radius-pill: 999px;
 }
 
-/* ============ MAIN CONTAINER ============ */
-.bluemoon-container {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-}
-
-/* ============ DESKTOP PANEL ============ */
-.bluemoon-panel-desktop {
+.bm_drawer_body {
     display: flex;
     flex-direction: column;
-    height: 100vh;
-    width: 350px;
-    background: rgba(26, 26, 46, 0.95);
-    border-left: 2px solid var(--bm-primary);
-    position: fixed;
-    right: 0;
-    top: 0;
-    z-index: 999;
-    overflow-y: auto;
-    color: var(--bm-light);
-}
-
-.bluemoon-panel-desktop.bluemoon-position-left {
-    right: auto;
-    left: 0;
-    border-left: none;
-    border-right: 2px solid var(--bm-primary);
-}
-
-.bluemoon-panel-desktop.bluemoon-collapsed {
-    width: 50px;
-}
-
-.bluemoon-panel-desktop.bluemoon-collapsed .bluemoon-panel-content {
-    display: none;
-}
-
-/* ============ PANEL HEADER ============ */
-.bluemoon-panel-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 15px;
-    border-bottom: 1px solid rgba(99, 102, 241, 0.2);
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1));
-}
-
-.bluemoon-panel-header h2 {
-    margin: 0;
-    font-size: 1.3em;
-}
-
-.bluemoon-toggle-btn {
-    background: none;
-    border: none;
-    color: var(--bm-primary);
-    cursor: pointer;
-    font-size: 1.2em;
-    transition: transform 0.3s ease;
-}
-
-.bluemoon-panel-desktop.bluemoon-collapsed .bluemoon-toggle-btn {
-    transform: rotate(180deg);
-}
-
-/* ============ PANEL CONTENT ============ */
-.bluemoon-panel-content {
-    flex: 1;
-    overflow-y: auto;
-    padding: 15px;
-}
-
-/* ============ TRAIT GROUPS ============ */
-.bluemoon-trait-group {
-    margin-bottom: 25px;
-}
-
-.bluemoon-group-header {
-    display: flex;
-    align-items: center;
-    margin-bottom: 12px;
-    padding-bottom: 8px;
-    border-bottom: 2px solid var(--bm-primary);
-}
-
-.bluemoon-group-icon {
-    font-size: 1.5em;
-    margin-right: 10px;
-}
-
-.bluemoon-group-label {
-    margin: 0;
-    font-size: 0.95em;
-    font-weight: 600;
-    color: var(--bm-primary);
-}
-
-/* ============ INDIVIDUAL TRAITS ============ */
-.bluemoon-trait-item {
-    margin-bottom: 18px;
-    padding: 12px;
-    background: rgba(99, 102, 241, 0.05);
-    border-radius: 8px;
-    border-left: 3px solid var(--bm-secondary);
-}
-
-.bluemoon-trait-header {
-    display: flex;
-    align-items: center;
-    margin-bottom: 8px;
-    gap: 8px;
-}
-
-.bluemoon-trait-icon {
-    font-size: 1.2em;
-    min-width: 25px;
-}
-
-.bluemoon-trait-label {
-    flex: 1;
-    margin: 0;
-    font-size: 0.9em;
-    font-weight: 500;
-}
-
-.bluemoon-trait-edit {
-    background: none;
-    border: none;
-    color: var(--bm-text-light);
-    cursor: pointer;
-    opacity: 0.6;
-    transition: opacity 0.2s;
-}
-
-.bluemoon-trait-edit:hover {
-    opacity: 1;
-}
-
-/* ============ SLIDERS ============ */
-.bluemoon-trait-slider-container {
-    display: flex;
-    align-items: center;
     gap: 10px;
-}
-
-.bluemoon-slider {
-    flex: 1;
-    height: 6px;
-    border-radius: 3px;
-    background: linear-gradient(to right, 
-        rgba(239, 68, 68, 0.3), 
-        rgba(34, 197, 94, 0.3));
-    outline: none;
-    -webkit-appearance: none;
-    appearance: none;
-}
-
-.bluemoon-slider::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, var(--bm-primary), var(--bm-secondary));
-    cursor: pointer;
-    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
-    transition: box-shadow 0.2s;
-}
-
-.bluemoon-slider::-webkit-slider-thumb:hover {
-    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.6);
-}
-
-.bluemoon-slider::-moz-range-thumb {
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, var(--bm-primary), var(--bm-secondary));
-    cursor: pointer;
-    border: none;
-    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
-    transition: box-shadow 0.2s;
-}
-
-.bluemoon-slider-value {
-    min-width: 45px;
-    text-align: right;
-    font-weight: 600;
-    color: var(--bm-primary);
-    font-size: 0.9em;
-}
-
-.bluemoon-trait-description {
-    display: block;
-    margin-top: 6px;
-    color: var(--bm-text-light);
-    font-size: 0.85em;
-}
-
-/* ============ NOTES SECTION ============ */
-.bluemoon-notes-section,
-.bluemoon-relationships-section {
-    margin-top: 25px;
-    padding-top: 15px;
-    border-top: 1px solid rgba(99, 102, 241, 0.2);
-}
-
-.bluemoon-section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 12px;
-}
-
-.bluemoon-section-header h3 {
-    margin: 0;
-    font-size: 0.95em;
-}
-
-.bluemoon-add-btn,
-.bluemoon-expand-btn {
-    background: none;
-    border: none;
-    color: var(--bm-primary);
-    cursor: pointer;
-    font-size: 1.1em;
-    transition: transform 0.2s;
-}
-
-.bluemoon-add-btn:hover,
-.bluemoon-expand-btn:hover {
-    transform: scale(1.15);
-}
-
-.bluemoon-notes-textarea {
+    padding: 6px 2px 12px 2px;
     width: 100%;
-    min-height: 100px;
-    padding: 10px;
-    border: 1px solid rgba(99, 102, 241, 0.3);
-    border-radius: 6px;
-    background: rgba(26, 26, 46, 0.5);
-    color: var(--bm-light);
-    font-family: 'Monaco', 'Courier New', monospace;
-    font-size: 0.9em;
-    resize: vertical;
+    box-sizing: border-box;
+    overflow-x: hidden;
 }
 
-.bluemoon-notes-textarea:focus {
-    outline: none;
-    border-color: var(--bm-primary);
-    box-shadow: 0 0 8px rgba(99, 102, 241, 0.3);
+.bm_card {
+    background: var(--bm-bg-card);
+    border: 1px solid var(--bm-border);
+    border-radius: var(--bm-radius-xl);
+    padding: 14px;
+    width: 100%;
+    box-sizing: border-box;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
 }
 
-/* ============ RELATIONSHIPS PREVIEW ============ */
-.bluemoon-relationships-preview {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
-.bluemoon-relationship-preview {
-    padding: 10px;
-    background: rgba(139, 92, 246, 0.1);
-    border-radius: 6px;
-    cursor: pointer;
-    transition: all 0.2s;
-    border: 1px solid rgba(139, 92, 246, 0.2);
-}
-
-.bluemoon-relationship-preview:hover {
-    background: rgba(139, 92, 246, 0.2);
-    border-color: var(--bm-secondary);
-}
-
-.bluemoon-rel-header {
+.bm_header_row {
     display: flex;
     align-items: center;
-    gap: 8px;
+    justify-content: space-between;
+    gap: 10px;
     margin-bottom: 6px;
-    font-size: 0.9em;
 }
 
-.bluemoon-rel-emoji {
-    font-size: 1.3em;
+.bm_title_group {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
 }
 
-.bluemoon-rel-type {
-    flex: 1;
-    font-weight: 500;
-}
-
-.bluemoon-rel-percentage {
-    color: var(--bm-primary);
+.bm_badge {
+    display: inline-flex;
+    align-items: center;
+    align-self: flex-start;
+    padding: 2px 10px;
+    border-radius: var(--bm-radius-pill);
+    background: var(--bm-bg-soft);
+    color: var(--bm-text-main);
+    font-size: 0.72rem;
     font-weight: 600;
 }
 
-.bluemoon-rel-bar {
+.bm_heading {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--bm-text-main);
+}
+
+.bm_subtext {
+    margin: 0;
+    font-size: 0.81rem;
+    line-height: 1.4;
+    color: var(--bm-text-muted);
+}
+
+.bm_section_title {
+    font-size: 0.86rem;
+    font-weight: 700;
+    color: var(--bm-text-main);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.bm_toggle_row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    background: var(--bm-bg-elevated);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: var(--bm-radius-lg);
+    min-height: 48px;
     width: 100%;
-    height: 6px;
+    box-sizing: border-box;
+    cursor: pointer;
+}
+
+.bm_toggle_row:last-child {
+    margin-bottom: 0;
+}
+
+.bm_toggle_info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+}
+
+.bm_toggle_name {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--bm-text-main);
+    line-height: 1.25;
+}
+
+.bm_toggle_desc {
+    font-size: 0.75rem;
+    line-height: 1.3;
+    color: var(--bm-text-muted);
+}
+
+.bm_checkbox {
+    width: 22px !important;
+    height: 22px !important;
+    min-width: 22px !important;
+    flex-shrink: 0;
+    accent-color: var(--bm-accent);
+    cursor: pointer;
+    margin: 0 !important;
+}
+
+.bm_switch {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 28px;
+    flex-shrink: 0;
+}
+
+.bm_switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.bm_slider_toggle {
+    position: absolute;
+    cursor: pointer;
+    inset: 0;
+    background-color: rgba(255, 255, 255, 0.18);
+    transition: 0.22s ease;
+    border-radius: var(--bm-radius-pill);
+}
+
+.bm_slider_toggle:before {
+    position: absolute;
+    content: "";
+    height: 20px;
+    width: 20px;
+    left: 4px;
+    bottom: 4px;
+    background-color: #ffffff;
+    transition: 0.22s ease;
+    border-radius: 50%;
+}
+
+.bm_switch input:checked + .bm_slider_toggle {
+    background: linear-gradient(135deg, var(--bm-accent), var(--bm-accent-2));
+}
+
+.bm_switch input:checked + .bm_slider_toggle:before {
+    transform: translateX(22px);
+}
+
+.bm_field_block {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.bm_row_inline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.bm_label_with_btn {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.bm_field_label {
+    font-size: 0.79rem;
+    font-weight: 600;
+    color: var(--bm-text-muted);
+}
+
+.bm_select,
+.bm_textarea,
+.bm_input {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: 44px;
+    padding: 8px 12px !important;
+    border-radius: var(--bm-radius-lg) !important;
+    border: 1px solid var(--bm-border) !important;
+    background: var(--bm-bg-elevated) !important;
+    color: var(--bm-text-main) !important;
+    font-size: 0.87rem !important;
+    box-sizing: border-box !important;
+    outline: none;
+    margin: 0 !important;
+}
+
+.bm_textarea {
+    min-height: 84px;
+    resize: vertical;
+    line-height: 1.4;
+    font-family: inherit;
+}
+
+.bm_code_textarea {
+    font-family: 'Courier New', monospace;
+    min-height: 110px;
+    font-size: 0.82rem !important;
+}
+
+.bm_range {
+    width: 100%;
+    height: 8px;
+    border-radius: var(--bm-radius-pill);
+    accent-color: var(--bm-accent);
+    cursor: pointer;
+}
+
+.bm_button_grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+}
+
+.bm_btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 44px;
+    padding: 9px 14px;
+    border-radius: var(--bm-radius-pill) !important;
+    font-size: 0.86rem;
+    font-weight: 600;
+    border: 1px solid transparent;
+    cursor: pointer;
+    box-sizing: border-box;
+    text-align: center;
+    transition: transform 0.15s ease, opacity 0.2s ease;
+}
+
+.bm_btn:active {
+    transform: scale(0.98);
+}
+
+.bm_btn_primary {
+    background: linear-gradient(135deg, var(--bm-accent) 0%, var(--bm-accent-2) 100%);
+    color: #ffffff;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+}
+
+.bm_btn_secondary {
+    background: var(--bm-bg-elevated);
+    border-color: var(--bm-border);
+    color: var(--bm-text-main);
+}
+
+.bm_btn_danger {
+    background: rgba(239, 68, 68, 0.16);
+    border-color: rgba(239, 68, 68, 0.35);
+    color: #fca5a5;
+}
+
+.bm_icon_btn {
+    min-width: 40px;
+    min-height: 40px;
+    border-radius: var(--bm-radius-pill) !important;
+    border: 1px solid var(--bm-border);
+    background: var(--bm-bg-elevated);
+    color: var(--bm-text-main);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+/* Floating Moon Button (FAB) */
+.bm_fab_btn {
+    position: fixed;
+    bottom: 74px;
+    right: 14px;
+    width: 50px;
+    height: 50px;
+    border-radius: 50% !important;
+    background: linear-gradient(135deg, var(--bm-accent), var(--bm-accent-2));
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    color: #ffffff;
+    font-size: 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+    z-index: 9500;
+    cursor: pointer;
+}
+
+/* Mobile-Safe Modal Sheet (Never goes behind top interface) */
+.bm_modal_backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 99998;
+    background: rgba(9, 11, 17, 0.8);
+    backdrop-filter: blur(7px);
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 52px 8px 10px 8px;
+    box-sizing: border-box;
+}
+
+.bm_modal_sheet {
+    width: 100%;
+    max-width: 620px;
+    max-height: calc(100dvh - 64px);
+    background: var(--bm-bg-sheet);
+    border: 1px solid var(--bm-border);
+    border-radius: var(--bm-radius-xl);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 16px 44px rgba(0, 0, 0, 0.65);
+    box-sizing: border-box;
+}
+
+.bm_modal_header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 12px 14px;
+    background: var(--bm-bg-elevated);
+    border-bottom: 1px solid var(--bm-border);
+    flex-shrink: 0;
+}
+
+.bm_modal_header_title {
+    margin: 0;
+    font-size: 0.94rem;
+    font-weight: 700;
+    color: var(--bm-text-main);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.bm_close_pill {
+    min-height: 38px;
+    padding: 0 13px;
+    border-radius: var(--bm-radius-pill) !important;
+    border: 1px solid var(--bm-border);
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--bm-text-main);
+    font-size: 0.83rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+/* 3-Tab Navigation Bar */
+.bm_tabs_bar {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 6px;
+    padding: 8px 10px;
     background: rgba(0, 0, 0, 0.2);
-    border-radius: 3px;
+    border-bottom: 1px solid var(--bm-border);
+    flex-shrink: 0;
+}
+
+.bm_tab_btn {
+    min-height: 40px;
+    padding: 4px 6px;
+    border-radius: var(--bm-radius-pill) !important;
+    border: 1px solid transparent;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--bm-text-muted);
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    text-align: center;
+}
+
+.bm_tab_btn.bm_tab_active {
+    background: linear-gradient(135deg, var(--bm-accent), var(--bm-accent-2));
+    color: #ffffff;
+}
+
+.bm_modal_body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    -webkit-overflow-scrolling: touch;
+}
+
+.bm_modal_footer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    background: var(--bm-bg-elevated);
+    border-top: 1px solid var(--bm-border);
+    flex-shrink: 0;
+}
+
+/* Relationship Cards */
+.bm_rel_card {
+    background: var(--bm-bg-card);
+    border: 1px solid var(--bm-border);
+    border-radius: var(--bm-radius-xl);
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.bm_rel_top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.bm_rel_person {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-width: 0;
+}
+
+.bm_rel_emoji {
+    font-size: 1.45rem;
+}
+
+.bm_rel_name_wrap {
+    display: flex;
+    flex-direction: column;
+}
+
+.bm_rel_name {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--bm-text-main);
+}
+
+.bm_rel_role_badge {
+    font-size: 0.76rem;
+    color: var(--bm-text-muted);
+    font-weight: 600;
+}
+
+.bm_rel_meter_wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.bm_rel_meter_labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.78rem;
+    color: var(--bm-text-muted);
+}
+
+.bm_rel_bar_bg {
+    width: 100%;
+    height: 10px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: var(--bm-radius-pill);
     overflow: hidden;
 }
 
-.bluemoon-rel-bar-fill {
+.bm_rel_bar_fill {
     height: 100%;
-    background: linear-gradient(90deg, var(--bm-secondary), var(--bm-accent));
-    transition: width 0.3s ease;
+    border-radius: var(--bm-radius-pill);
+    transition: width 0.35s ease;
 }
 
-.bluemoon-empty-state {
-    text-align: center;
-    color: var(--bm-text-light);
-    font-size: 0.9em;
-    padding: 20px;
-}
-
-/* ============ PANEL FOOTER ============ */
-.bluemoon-panel-footer {
+.bm_dates_chips {
     display: flex;
-    gap: 10px;
-    padding: 15px;
-    border-top: 1px solid rgba(99, 102, 241, 0.2);
-    background: rgba(99, 102, 241, 0.05);
-}
-
-/* ============ BUTTONS ============ */
-.bluemoon-btn {
-    flex: 1;
-    padding: 10px 15px;
-    border: none;
-    border-radius: 6px;
-    font-size: 0.9em;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    flex-wrap: wrap;
     gap: 6px;
 }
 
-.bluemoon-btn-primary {
-    background: linear-gradient(135deg, var(--bm-primary), var(--bm-secondary));
-    color: white;
+.bm_date_chip {
+    font-size: 0.75rem;
+    padding: 4px 10px;
+    border-radius: var(--bm-radius-pill);
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--bm-border);
+    color: var(--bm-text-main);
 }
 
-.bluemoon-btn-primary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+.bm_memories_list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 4px;
 }
 
-.bluemoon-btn-secondary {
-    background: rgba(99, 102, 241, 0.1);
-    color: var(--bm-primary);
-    border: 1px solid rgba(99, 102, 241, 0.3);
-}
-
-.bluemoon-btn-secondary:hover {
-    background: rgba(99, 102, 241, 0.2);
-}
-
-.bluemoon-btn-danger {
-    background: rgba(239, 68, 68, 0.2);
-    color: #ef4444;
-    border: 1px solid rgba(239, 68, 68, 0.3);
-}
-
-.bluemoon-btn-danger:hover {
-    background: rgba(239, 68, 68, 0.3);
-}
-
-/* ============ MODALS ============ */
-.bluemoon-modal {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.7);
-    z-index: 2000;
+.bm_memory_item {
+    display: flex;
     align-items: center;
-    justify-content: center;
-    animation: bluemoon-modal-fade-in 0.2s ease;
-}
-
-.bluemoon-modal.bluemoon-modal-open {
-    display: flex;
-}
-
-@keyframes bluemoon-modal-fade-in {
-    from {
-        opacity: 0;
-    }
-    to {
-        opacity: 1;
-    }
-}
-
-.bluemoon-modal-content {
-    background: var(--bm-dark);
-    border: 1px solid rgba(99, 102, 241, 0.3);
-    border-radius: 12px;
-    max-width: 500px;
-    width: 90%;
-    max-height: 80vh;
-    overflow-y: auto;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
-}
-
-.bluemoon-modal-header {
-    display: flex;
     justify-content: space-between;
-    align-items: center;
-    padding: 20px;
-    border-bottom: 1px solid rgba(99, 102, 241, 0.2);
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: var(--bm-radius-md);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    font-size: 0.8rem;
+    color: var(--bm-text-main);
 }
 
-.bluemoon-modal-header h2 {
-    margin: 0;
-    font-size: 1.3em;
-    color: var(--bm-light);
-}
-
-.bluemoon-modal-close {
+.bm_memory_del {
     background: none;
     border: none;
-    color: var(--bm-light);
-    font-size: 1.3em;
+    color: #fca5a5;
     cursor: pointer;
-    opacity: 0.7;
-    transition: opacity 0.2s;
+    font-size: 0.9rem;
+    padding: 4px;
 }
 
-.bluemoon-modal-close:hover {
-    opacity: 1;
+.bm_last_reason {
+    font-size: 0.76rem;
+    color: #a7f3d0;
+    background: rgba(16, 185, 129, 0.12);
+    border-radius: var(--bm-radius-md);
+    padding: 6px 10px;
 }
 
-.bluemoon-modal-body {
-    padding: 20px;
+/* Theme Swatch Grid */
+.bm_theme_grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
 }
 
-.bluemoon-modal-footer {
+.bm_theme_swatch {
     display: flex;
+    align-items: center;
     gap: 10px;
-    padding: 20px;
-    border-top: 1px solid rgba(99, 102, 241, 0.2);
-    background: rgba(99, 102, 241, 0.05);
-}
-
-/* ============ FORMS ============ */
-.bluemoon-form-group {
-    margin-bottom: 18px;
-}
-
-.bluemoon-form-group label {
-    display: block;
-    margin-bottom: 6px;
-    font-weight: 500;
-    color: var(--bm-light);
-    font-size: 0.95em;
-}
-
-.bluemoon-input,
-.bluemoon-select,
-.bluemoon-textarea {
-    width: 100%;
-    padding: 10px;
-    border: 1px solid rgba(99, 102, 241, 0.3);
-    border-radius: 6px;
-    background: rgba(26, 26, 46, 0.5);
-    color: var(--bm-light);
-    font-size: 0.9em;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-}
-
-.bluemoon-input:focus,
-.bluemoon-select:focus,
-.bluemoon-textarea:focus {
-    outline: none;
-    border-color: var(--bm-primary);
-    box-shadow: 0 0 8px rgba(99, 102, 241, 0.3);
-}
-
-.bluemoon-textarea {
-    min-height: 120px;
-    resize: vertical;
-    font-family: 'Monaco', 'Courier New', monospace;
-}
-
-.bluemoon-help-text {
-    display: block;
-    margin-top: 6px;
-    color: var(--bm-text-light);
-    font-size: 0.85em;
-}
-
-/* ============ MOBILE FAB ============ */
-.bluemoon-fab {
-    display: none;
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    width: 56px;
-    height: 56px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, var(--bm-primary), var(--bm-secondary));
-    border: none;
-    color: white;
-    font-size: 1.5em;
-    cursor: pointer;
-    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.5);
-    z-index: 1000;
-    transition: all 0.2s;
-}
-
-.bluemoon-fab:hover {
-    transform: scale(1.1);
-    box-shadow: 0 6px 16px rgba(99, 102, 241, 0.7);
-}
-
-.bluemoon-fab:active {
-    transform: scale(0.95);
-}
-
-/* ============ MOBILE MODAL ============ */
-.bluemoon-modal-mobile {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    top: auto;
-    width: 100%;
-    height: 90vh;
-    border-radius: 16px 16px 0 0;
-    animation: bluemoon-slide-up 0.3s ease;
-}
-
-.bluemoon-modal-mobile .bluemoon-modal-content {
-    border-radius: 16px 16px 0 0;
-    max-width: 100%;
-    width: 100%;
-    max-height: 90vh;
-}
-
-@keyframes bluemoon-slide-up {
-    from {
-        transform: translateY(100%);
-    }
-    to {
-        transform: translateY(0);
-    }
-}
-
-/* ============ RESPONSIVE ============ */
-@media (max-width: 1000px) {
-    .bluemoon-panel-desktop {
-        display: none;
-    }
-
-    .bluemoon-fab {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-}
-
-@media (max-width: 600px) {
-    .bluemoon-fab {
-        bottom: 15px;
-        right: 15px;
-        width: 50px;
-        height: 50px;
-        font-size: 1.3em;
-    }
-
-    .bluemoon-modal-mobile {
-        height: 100vh;
-    }
-
-    .bluemoon-modal-mobile .bluemoon-modal-content {
-        max-height: 100vh;
-    }
-
-    .bluemoon-panel-footer {
-        flex-direction: column;
-    }
-
-    .bluemoon-btn {
-        width: 100%;
-    }
-}
-/* ============ SETTINGS PANEL (Extensions Menu) ============ */
-.bluemoon-settings-panel .inline-drawer-header {
-    cursor: pointer;
-}
-
-.bluemoon-setting-row {
-    margin-bottom: 12px;
-}
-
-.bluemoon-setting-row label {
-    display: block;
-    margin-bottom: 4px;
-    font-size: 0.9em;
-}
-
-/* ============ RELATIONSHIP NAME ============ */
-.bluemoon-rel-name {
+    padding: 10px 12px;
+    border-radius: var(--bm-radius-lg);
+    background: var(--bm-bg-elevated);
+    border: 2px solid transparent;
+    color: var(--bm-text-main);
+    font-size: 0.83rem;
     font-weight: 600;
-}
-
-/* ============ ADD RELATIONSHIP BUTTON ============ */
-.bluemoon-add-rel-btn {
-    background: none;
-    border: none;
-    color: var(--bm-primary, #6366f1);
     cursor: pointer;
-    font-size: 1.1em;
-    transition: transform 0.2s;
 }
 
-.bluemoon-add-rel-btn:hover {
-    transform: scale(1.15);
+.bm_theme_swatch.bm_swatch_active {
+    border-color: var(--bm-accent);
 }
 
-/* ============ PANEL DISPLAY FIX ============ */
-.bluemoon-panel-desktop {
-    display: none;
-}
-
-.bluemoon-panel-desktop[style*="display: flex"],
-.bluemoon-panel-desktop[style*="display:flex"] {
-    display: flex !important;
+.bm_swatch_dot {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    flex-shrink: 0;
 }
