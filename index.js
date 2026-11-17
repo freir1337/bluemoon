@@ -1,5 +1,6 @@
 /**
- * BlueMoon v2.1 — Multi-Node Relationship Tracker, Interactive Graph, Custom Sliders & Themes
+ * BlueMoon v2.1.2 — Multi-Node Relationship Tracker, Interactive Graph, Custom Sliders & Themes
+ * Added: 5 Crush / Attraction modes (Secret One-Sided, Open One-Sided, Unrequited, Secret Mutual, Open Mutual)
  * Author: Тристис
  */
 
@@ -12,6 +13,49 @@ const NODE_TYPES = {
     bot: { label: 'Бот', color: '#a855f7' },
     persona: { label: 'Персона', color: '#38bdf8' },
     npc: { label: 'NPC', color: '#f59e0b' },
+};
+
+const CRUSH_MUTUALITY = {
+    secret_one_sided: {
+        label: '🤫 Тайно влюблён(а) (скрывает, второй не знает)',
+        shortGraph: 'Тайно влюблён(а)',
+        bothArrows: false,
+        dashed: true,
+        promptDesc: (from, to) =>
+            `SECRET ONE-SIDED CRUSH: "${from}" is secretly in love / attracted to "${to}", hides these feelings, and has NOT confessed. "${to}" is completely unaware of "${from}"'s feelings.`,
+    },
+    open_one_sided: {
+        label: '💘 Открытая симпатия (в одну сторону)',
+        shortGraph: 'Симпатия ➔',
+        bothArrows: false,
+        dashed: false,
+        promptDesc: (from, to) =>
+            `ONE-SIDED ATTRACTION: "${from}" openly shows romantic interest/attraction toward "${to}", while "${to}" has not reciprocated yet.`,
+    },
+    unrequited: {
+        label: '💔 Безответно (невзаимно / отказ)',
+        shortGraph: 'Безответно ➔',
+        bothArrows: false,
+        dashed: true,
+        promptDesc: (from, to) =>
+            `UNREQUITED LOVE: "${from}" has romantic feelings for "${to}", but "${to}" does NOT share or return those romantic feelings.`,
+    },
+    secret_mutual: {
+        label: '🫣 Тайно обоюдно (оба влюблены, но оба скрывают)',
+        shortGraph: 'Тайно взаимно ↔',
+        bothArrows: true,
+        dashed: true,
+        promptDesc: (from, to) =>
+            `SECRET MUTUAL CRUSH (SLOW-BURN): Both "${from}" and "${to}" secretly have romantic feelings for each other, but both hide it and neither has confessed yet.`,
+    },
+    open_mutual: {
+        label: '💞 Обоюдная симпатия / Взаимный флирт',
+        shortGraph: 'Взаимная симпатия ↔',
+        bothArrows: true,
+        dashed: false,
+        promptDesc: (from, to) =>
+            `OPEN MUTUAL ATTRACTION: Both "${from}" and "${to}" openly share romantic attraction and flirtation, though they are not officially a couple yet.`,
+    },
 };
 
 const RELATIONSHIP_ROLES = {
@@ -41,6 +85,18 @@ const RELATIONSHIP_ROLES = {
         dashed: false,
         directed: false,
         dates: [{ key: 'startDate', label: 'С какого момента дружат' }],
+    },
+    crush: {
+        label: 'Влюблённость / Симпатия',
+        icon: '💘',
+        color: '#ff6b9d',
+        dashed: false,
+        directed: true,
+        hasMutuality: true,
+        dates: [
+            { key: 'crushStart', label: 'Когда зародилась симпатия' },
+            { key: 'confessionDate', label: 'Признание / Важный момент' },
+        ],
     },
     enemies: {
         label: 'Враги / Соперники',
@@ -286,7 +342,6 @@ const DEFAULT_SETTINGS = {
 
 let isAnalyzing = false;
 
-// Graph viewport state
 const graphView = {
     scale: 1,
     offsetX: 0,
@@ -298,9 +353,6 @@ const graphView = {
     avatarCache: {},
 };
 
-/**
- * Load & migrate settings
- */
 function getSettings() {
     const context = SillyTavern.getContext();
     if (!context.extensionSettings[MODULE_NAME]) {
@@ -339,9 +391,6 @@ function escapeHtml(str) {
         .replace(/"/g, '&quot;');
 }
 
-/**
- * Unique storage key isolated per character (and optionally per chat)
- */
 function getCurrentCharacterKey() {
     const ctx = SillyTavern.getContext();
     let baseKey = null;
@@ -384,9 +433,6 @@ function getCurrentUserName() {
     return ctx.name1 || 'Персона';
 }
 
-/**
- * Ensure default nodes (Bot + User Persona) and migrate old 2.0 relationships
- */
 function getCurrentCharData() {
     const s = getSettings();
     const key = getCurrentCharacterKey();
@@ -407,7 +453,6 @@ function getCurrentCharData() {
     const botName = getCurrentCharacterName();
     const userName = getCurrentUserName();
 
-    // Ensure Bot node exists
     let botNode = data.nodes.find((n) => n.type === 'bot');
     if (!botNode) {
         botNode = {
@@ -424,7 +469,6 @@ function getCurrentCharData() {
         if (!botNode.avatar) botNode.avatar = getCurrentBotAvatarUrl();
     }
 
-    // Ensure Persona node exists
     let personaNode = data.nodes.find((n) => n.type === 'persona');
     if (!personaNode) {
         personaNode = {
@@ -438,7 +482,6 @@ function getCurrentCharData() {
         data.nodes.push(personaNode);
     }
 
-    // Migrate old v2.0 single-target relationships (where fromId/toId were missing)
     for (const rel of data.relationships) {
         if (!rel.fromId || !rel.toId) {
             rel.fromId = botNode.id;
@@ -458,6 +501,9 @@ function getCurrentCharData() {
                 data.nodes.push(targetNode);
             }
             rel.toId = targetNode.id;
+        }
+        if (rel.role === 'crush' && !rel.mutualStatus) {
+            rel.mutualStatus = 'secret_one_sided';
         }
     }
 
@@ -480,7 +526,6 @@ function compilePromptText() {
     const charData = getCurrentCharData();
     const charName = getCurrentCharacterName();
 
-    // 1. Relationship Network Block (Bot, Persona, NPCs)
     if (s.relEnabled && charKey && charData) {
         const relLines = [];
 
@@ -496,7 +541,6 @@ function compilePromptText() {
                 const roleCfg = RELATIONSHIP_ROLES[rel.role] || RELATIONSHIP_ROLES.strangers;
                 const fromName = findNodeName(charData, rel.fromId);
                 const toName = findNodeName(charData, rel.toId);
-                const arrow = roleCfg.directed ? '-->' : '<-->';
                 const sat = Number.isFinite(Number(rel.satisfaction)) ? Number(rel.satisfaction) : 50;
 
                 let warmthTone = 'Neutral / moderate warmth';
@@ -504,6 +548,15 @@ function compilePromptText() {
                 else if (sat >= 65) warmthTone = 'Warm, supportive, positive connection';
                 else if (sat <= 20) warmthTone = 'Hostile, cold, estranged, bitter resentment';
                 else if (sat <= 40) warmthTone = 'Tense, guarded, strained relationship';
+
+                let roleDescription = `Role = ${roleCfg.label}`;
+                let arrow = roleCfg.directed ? '-->' : '<-->';
+
+                if (rel.role === 'crush') {
+                    const mutCfg = CRUSH_MUTUALITY[rel.mutualStatus] || CRUSH_MUTUALITY.secret_one_sided;
+                    arrow = mutCfg.bothArrows ? '<-->' : '-->';
+                    roleDescription = `${roleCfg.label} [${mutCfg.label}] — ${mutCfg.promptDesc(fromName, toName)}`;
+                }
 
                 const dateStrings = [];
                 if (rel.dates && typeof rel.dates === 'object') {
@@ -523,7 +576,7 @@ function compilePromptText() {
                     }
                 }
 
-                let entry = `- Connection "${fromName}" ${arrow} "${toName}": Role = ${roleCfg.label} | Relationship Warmth/Satisfaction = ${sat}% (${warmthTone}).`;
+                let entry = `- Connection "${fromName}" ${arrow} "${toName}": ${roleDescription} | Relationship Warmth/Satisfaction = ${sat}% (${warmthTone}).`;
                 if (dateStrings.length) entry += `\n  Important Dates: ${dateStrings.join('; ')}.`;
                 if (memStrings.length) entry += `\n  Shared History, Gifts & Details: ${memStrings.join(' | ')}.`;
                 relLines.push(entry);
@@ -543,7 +596,6 @@ function compilePromptText() {
         }
     }
 
-    // 2. Style & Custom Sliders Block
     if (s.styleEnabled && s.sliders) {
         const sl = s.sliders;
         const styleLines = [];
@@ -592,7 +644,6 @@ function compilePromptText() {
             styleLines.push(`- Speech Grit (${sl.profanity}%): Avoid swearing or vulgar expressions in dialogue.`);
         }
 
-        // User's Custom Sliders
         if (Array.isArray(s.customSliders)) {
             for (const cSlider of s.customSliders) {
                 const val = Number(sl.customValues?.[cSlider.id] ?? 50);
@@ -627,9 +678,6 @@ function updatePromptInjection() {
     }
 }
 
-/**
- * Safe LLM Request via ConnectionManagerRequestService or generateRaw
- */
 async function runModelPrompt(systemPrompt, userPrompt, maxTokens = 500) {
     const context = SillyTavern.getContext();
     const settings = getSettings();
@@ -665,9 +713,6 @@ async function runModelPrompt(systemPrompt, userPrompt, maxTokens = 500) {
     throw new Error('API генерации недоступно');
 }
 
-/**
- * Auto-analyze satisfaction % delta after bot reply
- */
 async function analyzeRelationshipDelta(manualTrigger = false) {
     if (isAnalyzing) return;
     const s = getSettings();
@@ -694,6 +739,7 @@ async function analyzeRelationshipDelta(manualTrigger = false) {
         from: findNodeName(charData, r.fromId),
         to: findNodeName(charData, r.toId),
         role: RELATIONSHIP_ROLES[r.role]?.label || r.role,
+        mutualStatus: r.role === 'crush' ? (r.mutualStatus || 'secret_one_sided') : undefined,
         satisfaction: r.satisfaction,
     }));
 
@@ -775,11 +821,13 @@ async function autoBuildGraphWithAI() {
     const userName = getCurrentUserName();
 
     const sysPrompt = `You are a relationship graph extractor for a roleplay story.
-Read the character description and recent chat messages. Identify all characters (Main Bot "${botName}", User Persona "${userName}", and any mentioned NPCs like relatives, friends, exes, rivals) and their relationships.
+Read the character description and recent chat messages. Identify all characters (Main Bot "${botName}", User Persona "${userName}", and any mentioned NPCs) and their relationships.
 Allowed role keys:
-- strangers, friends, best_friends, enemies, dating, engaged, married, exes, parent_child, adopted_child, godparent, siblings.
-Note: For parent_child, adopted_child, godparent, "from" MUST be the parent/mentor and "to" MUST be the child.
-Return ONLY valid JSON without markdown fences in this exact schema:
+- strangers, friends, best_friends, crush, enemies, dating, engaged, married, exes, parent_child, adopted_child, godparent, siblings.
+Notes:
+- For parent_child, adopted_child, godparent: "from" MUST be the parent/mentor and "to" MUST be the child.
+- For "crush": "from" is the one who has feelings, "to" is the target of affection, and include "mutualStatus" as one of: "secret_one_sided", "open_one_sided", "unrequited", "secret_mutual", "open_mutual".
+Return ONLY valid JSON without markdown fences:
 {
   "nodes": [
     {"name": "${botName}", "type": "bot"},
@@ -787,7 +835,7 @@ Return ONLY valid JSON without markdown fences in this exact schema:
     {"name": "NPC Name", "type": "npc"}
   ],
   "relationships": [
-    {"from": "Name 1", "to": "Name 2", "role": "dating", "satisfaction": 70, "note": "Краткая суть связи на русском"}
+    {"from": "Name 1", "to": "Name 2", "role": "crush", "mutualStatus": "secret_one_sided", "satisfaction": 65, "note": "Краткая суть связи на русском"}
   ]
 }`;
 
@@ -807,7 +855,6 @@ Return ONLY valid JSON without markdown fences in this exact schema:
         const newNodes = Array.isArray(parsed.nodes) ? parsed.nodes : [];
         const newRels = Array.isArray(parsed.relationships) ? parsed.relationships : [];
 
-        // Merge nodes without losing existing photos/coordinates
         const cx = 300;
         const cy = 200;
         const radius = 135;
@@ -829,13 +876,17 @@ Return ONLY valid JSON without markdown fences in this exact schema:
             }
         });
 
-        // Merge relationships
         for (const r of newRels) {
             const fromNode = charData.nodes.find((n) => n.name.toLowerCase() === String(r.from || '').trim().toLowerCase());
             const toNode = charData.nodes.find((n) => n.name.toLowerCase() === String(r.to || '').trim().toLowerCase());
             if (!fromNode || !toNode || fromNode.id === toNode.id) continue;
 
             const role = RELATIONSHIP_ROLES[r.role] ? r.role : 'strangers';
+            const mutualStatus =
+                role === 'crush' && CRUSH_MUTUALITY[r.mutualStatus]
+                    ? r.mutualStatus
+                    : 'secret_one_sided';
+
             const existingRel = charData.relationships.find(
                 (er) =>
                     (er.fromId === fromNode.id && er.toId === toNode.id) ||
@@ -844,6 +895,7 @@ Return ONLY valid JSON without markdown fences in this exact schema:
 
             if (existingRel) {
                 existingRel.role = role;
+                if (role === 'crush') existingRel.mutualStatus = mutualStatus;
                 if (Number.isFinite(Number(r.satisfaction))) {
                     existingRel.satisfaction = Math.max(0, Math.min(100, Number(r.satisfaction)));
                 }
@@ -854,6 +906,7 @@ Return ONLY valid JSON without markdown fences in this exact schema:
                     fromId: fromNode.id,
                     toId: toNode.id,
                     role,
+                    mutualStatus: role === 'crush' ? mutualStatus : undefined,
                     satisfaction: Math.max(0, Math.min(100, Number(r.satisfaction) || 55)),
                     dates: {},
                     memories: r.note ? [{ category: 'event', text: r.note }] : [],
@@ -875,9 +928,6 @@ Return ONLY valid JSON without markdown fences in this exact schema:
     }
 }
 
-/**
- * Apply Theme & Custom CSS
- */
 function applyVisualTheme() {
     const s = getSettings();
     const theme = THEMES[s.activeTheme] || THEMES.moonlight;
@@ -899,9 +949,6 @@ function applyVisualTheme() {
     styleTag.textContent = s.customCss || '';
 }
 
-/**
- * Populate Connection Manager Profiles
- */
 function populateConnectionProfiles() {
     const select = document.getElementById('bm2_connection_profile');
     if (!select) return;
@@ -931,9 +978,6 @@ function populateConnectionProfiles() {
     }
 }
 
-/**
- * Compress uploaded image from phone gallery to lightweight DataURL
- */
 function readAndCompressImage(file, maxSize = 160) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -958,9 +1002,6 @@ function readAndCompressImage(file, maxSize = 160) {
     });
 }
 
-/**
- * Build Main Modal + Magic Wand Button (NO floating button)
- */
 function buildMainOverlay() {
     if (!document.getElementById('bm2_overlay')) {
         const overlay = document.createElement('div');
@@ -1015,7 +1056,6 @@ function buildMainOverlay() {
         });
     }
 
-    // Add entry to Magic Wand (#extensionsMenu)
     const extMenu = document.getElementById('extensionsMenu');
     if (extMenu && !document.getElementById('bm2_wand_item')) {
         const item = document.createElement('div');
@@ -1044,15 +1084,11 @@ function closeBlueMoonModal() {
     document.getElementById('bm2_overlay')?.classList.remove('bm2_open');
 }
 
-/**
- * Live Prompt Preview Modal (Answers User Question #3)
- */
 function openPromptPreviewModal() {
     const pane = document.getElementById('bm2_pane_rel');
     const promptText = compilePromptText() || '(Промпт пуст — добавьте связь или включите ползунки)';
     const depth = getSettings().injectionDepth ?? 1;
 
-    // Show inside whichever tab is currently active
     const activePane = document.querySelector('.bm2_tab_pane.bm2_active') || pane;
     if (!activePane) return;
 
@@ -1062,7 +1098,7 @@ function openPromptPreviewModal() {
                 <span>👁️ Что именно отправляется ИИшке</span>
             </div>
             <p class="bm2_subtext">
-                Этот скрытый системный блок автоматически вставляется в память нейросети на глубине <b>Depth = ${depth}</b> перед каждым ответом бота. В видимом чате он не отображается, но ИИ строго учитывает все связи, даты, подарки и ползунки стиля.
+                Этот скрытый системный блок автоматически вставляется в память нейросети на глубине <b>Depth = ${depth}</b> перед каждым ответом бота.
             </p>
             <textarea class="bm2_textarea" style="min-height: 240px; font-family: monospace; font-size: 0.8rem;" readonly>${escapeHtml(promptText)}</textarea>
             <div class="bm2_btn_row">
@@ -1086,7 +1122,7 @@ function getMeterColor(val) {
 }
 
 /**
- * TAB 1: Relationships & Participants (Bot, Persona, NPCs)
+ * TAB 1: Relationships & Participants
  */
 function renderRelationshipsTab() {
     const pane = document.getElementById('bm2_pane_rel');
@@ -1106,7 +1142,6 @@ function renderRelationshipsTab() {
         return;
     }
 
-    // Render participants strip
     const nodesHtml = charData.nodes
         .map((n) => {
             const typeCfg = NODE_TYPES[n.type] || NODE_TYPES.npc;
@@ -1125,7 +1160,6 @@ function renderRelationshipsTab() {
         })
         .join('');
 
-    // Render relationship cards
     let relCardsHtml = '';
     if (charData.relationships.length === 0) {
         relCardsHtml = `<p class="bm2_subtext">Связей пока нет. Нажмите «+ Добавить связь» или перейдите во вкладку «🕸️ Древо» для авто-построения через ИИ.</p>`;
@@ -1136,7 +1170,15 @@ function renderRelationshipsTab() {
                 const sat = Math.max(0, Math.min(100, Number(rel.satisfaction) || 50));
                 const fromName = findNodeName(charData, rel.fromId);
                 const toName = findNodeName(charData, rel.toId);
-                const connector = roleCfg.directed ? '➔' : '↔';
+
+                let connector = roleCfg.directed ? '➔' : '↔';
+                let badgeText = roleCfg.label;
+
+                if (rel.role === 'crush') {
+                    const mutCfg = CRUSH_MUTUALITY[rel.mutualStatus] || CRUSH_MUTUALITY.secret_one_sided;
+                    connector = mutCfg.bothArrows ? '↔' : '➔';
+                    badgeText = `${roleCfg.label}: ${mutCfg.label}`;
+                }
 
                 const datesHtml = roleCfg.dates
                     .map((d) => {
@@ -1162,7 +1204,7 @@ function renderRelationshipsTab() {
                                 <span>${roleCfg.icon}</span>
                                 <span class="bm2_rel_name">${escapeHtml(fromName)} ${connector} ${escapeHtml(toName)}</span>
                             </div>
-                            <span class="bm2_rel_role_badge" style="border: 1px solid ${roleCfg.color};">${escapeHtml(roleCfg.label)}</span>
+                            <span class="bm2_rel_role_badge" style="border: 1px solid ${roleCfg.color};">${escapeHtml(badgeText)}</span>
                         </div>
                         <button type="button" class="bm2_btn bm2_btn_small bm2_edit_rel_btn" data-id="${escapeHtml(rel.id)}">✏️ Изменить</button>
                     </div>
@@ -1235,9 +1277,6 @@ function renderRelationshipsTab() {
     });
 }
 
-/**
- * Participant (Bot / Persona / NPC) Editor with Photo Upload from Phone Gallery
- */
 function openNodeEditor(nodeId) {
     const pane = document.getElementById('bm2_pane_rel');
     const charData = getCurrentCharData();
@@ -1258,7 +1297,7 @@ function openNodeEditor(nodeId) {
     pane.innerHTML = `
         <div class="bm2_card">
             <div class="bm2_card_title">
-                <span>${existing ? '✏️ Редактировать участника' : '➕ Новый участник (NPC / Персона)'}</span>
+                <span>${existing ? '✏️ Редактировать участника' : '➕ Новый участника (NPC / Персона)'}</span>
             </div>
 
             <div class="bm2_field_group">
@@ -1354,7 +1393,7 @@ function openNodeEditor(nodeId) {
 }
 
 /**
- * Relationship Editor (Connect ANY 2 Participants: Bot, Persona, NPCs)
+ * Relationship Editor (with Crush Directionality & 5 Mutuality Modes)
  */
 function openRelationshipEditor(relId) {
     const pane = document.getElementById('bm2_pane_rel');
@@ -1371,15 +1410,33 @@ function openRelationshipEditor(relId) {
               id: 'rel_' + Date.now(),
               fromId: defaultFrom,
               toId: defaultTo,
-              role: 'dating',
+              role: 'crush',
+              mutualStatus: 'secret_one_sided',
               satisfaction: 65,
               dates: {},
               memories: [],
               lastDeltaNote: '',
           };
 
+    if (!rel.mutualStatus) rel.mutualStatus = 'secret_one_sided';
+
     function renderForm() {
         const roleCfg = RELATIONSHIP_ROLES[rel.role] || RELATIONSHIP_ROLES.strangers;
+
+        const isCrush = rel.role === 'crush';
+        const isParent = rel.role === 'parent_child' || rel.role === 'adopted_child' || rel.role === 'godparent';
+
+        const fromLabel = isCrush
+            ? '💘 Кто влюблён (Испытывает чувства):'
+            : isParent
+            ? '👤 Кто (Родитель / Наставник):'
+            : '👤 Участник 1 (От кого):';
+
+        const toLabel = isCrush
+            ? '🎯 В кого влюблён (Объект симпатии):'
+            : isParent
+            ? '👶 К кому (Ребёнок / Подопечный):'
+            : '👤 Участник 2 (К кому):';
 
         const fromOptions = charData.nodes
             .map(
@@ -1402,13 +1459,29 @@ function openRelationshipEditor(relId) {
             )
             .join('');
 
+        const mutualityHtml = isCrush
+            ? `
+            <div class="bm2_field_group">
+                <label>💞 Взаимность и скрытность чувств:</label>
+                <select id="bm2_edit_mutual" class="bm2_select_input">
+                    ${Object.entries(CRUSH_MUTUALITY)
+                        .map(
+                            ([k, v]) =>
+                                `<option value="${k}" ${rel.mutualStatus === k ? 'selected' : ''}>${escapeHtml(v.label)}</option>`
+                        )
+                        .join('')}
+                </select>
+            </div>
+        `
+            : '';
+
         const dateInputsHtml = roleCfg.dates
             .map((d) => {
                 const val = rel.dates?.[d.key] || '';
                 return `
                 <div class="bm2_field_group">
                     <label>📅 ${escapeHtml(d.label)}:</label>
-                    <input type="text" class="bm2_input bm2_rel_date_inp" data-date-key="${d.key}" value="${escapeHtml(val)}" placeholder="Например: 14 февраля / 3 года назад" />
+                    <input type="text" class="bm2_input bm2_rel_date_inp" data-date-key="${d.key}" value="${escapeHtml(val)}" placeholder="Например: с осени / после вечеринки" />
                 </div>
             `;
             })
@@ -1432,25 +1505,27 @@ function openRelationshipEditor(relId) {
                     <span>${existing ? '✏️ Редактировать связь' : '➕ Новая связь'}</span>
                 </div>
 
-                <div class="bm2_grid_2">
-                    <div class="bm2_field_group">
-                        <label>Участник 1 (От кого):</label>
-                        <select id="bm2_edit_from" class="bm2_select_input">${fromOptions}</select>
-                    </div>
-                    <div class="bm2_field_group">
-                        <label>Участник 2 (К кому):</label>
-                        <select id="bm2_edit_to" class="bm2_select_input">${toOptions}</select>
-                    </div>
-                </div>
-
                 <div class="bm2_field_group">
                     <label>Статус / Роль отношений:</label>
                     <select id="bm2_edit_role" class="bm2_select_input">${roleOptions}</select>
                 </div>
 
+                <div class="bm2_grid_2">
+                    <div class="bm2_field_group">
+                        <label>${fromLabel}</label>
+                        <select id="bm2_edit_from" class="bm2_select_input">${fromOptions}</select>
+                    </div>
+                    <div class="bm2_field_group">
+                        <label>${toLabel}</label>
+                        <select id="bm2_edit_to" class="bm2_select_input">${toOptions}</select>
+                    </div>
+                </div>
+
+                ${mutualityHtml}
+
                 <div class="bm2_slider_item">
                     <div class="bm2_slider_head">
-                        <span>💖 Теплота / Удовлетворённость</span>
+                        <span>💖 Теплота / Сила чувств</span>
                         <span class="bm2_slider_val" id="bm2_edit_sat_val">${rel.satisfaction}%</span>
                     </div>
                     <input type="range" id="bm2_edit_sat" class="bm2_range" min="0" max="100" value="${rel.satisfaction}" />
@@ -1470,7 +1545,7 @@ function openRelationshipEditor(relId) {
                             <option value="habit">💬 Привычка</option>
                             <option value="conflict">⚡ Обида/Ссора</option>
                         </select>
-                        <input type="text" id="bm2_new_mem_text" class="bm2_input" placeholder="Подарил серебряное кольцо..." />
+                        <input type="text" id="bm2_new_mem_text" class="bm2_input" placeholder="Например: украдкой смотрит, подарил..." />
                         <button type="button" id="bm2_add_mem_btn" class="bm2_btn bm2_btn_small bm2_btn_accent">+</button>
                     </div>
                 </div>
@@ -1486,6 +1561,9 @@ function openRelationshipEditor(relId) {
         const syncDraft = () => {
             rel.fromId = document.getElementById('bm2_edit_from')?.value || rel.fromId;
             rel.toId = document.getElementById('bm2_edit_to')?.value || rel.toId;
+            if (document.getElementById('bm2_edit_mutual')) {
+                rel.mutualStatus = document.getElementById('bm2_edit_mutual').value;
+            }
             rel.satisfaction = Number(document.getElementById('bm2_edit_sat')?.value ?? 50);
             pane.querySelectorAll('.bm2_rel_date_inp').forEach((inp) => {
                 rel.dates[inp.getAttribute('data-date-key')] = inp.value;
@@ -1496,6 +1574,10 @@ function openRelationshipEditor(relId) {
             syncDraft();
             rel.role = e.target.value;
             renderForm();
+        });
+
+        document.getElementById('bm2_edit_mutual')?.addEventListener('change', (e) => {
+            rel.mutualStatus = e.target.value;
         });
 
         document.getElementById('bm2_edit_sat')?.addEventListener('input', (e) => {
@@ -1659,7 +1741,6 @@ function initGraphCanvasInteractions() {
         graphView.lastX = pt.rawX;
         graphView.lastY = pt.rawY;
 
-        // Hit-test nodes (radius 34px)
         for (let i = charData.nodes.length - 1; i >= 0; i--) {
             const n = charData.nodes[i];
             const dx = pt.x - (n.x || 250);
@@ -1714,8 +1795,24 @@ function initGraphCanvasInteractions() {
 }
 
 /**
- * Draw Obsidian + Colored Lines + Photo/Text Circles on Canvas
+ * Draw Obsidian + Colored Lines + Arrows + Photo/Text Circles on Canvas
  */
+function drawArrowHead(ctx, fromX, fromY, toX, toY, color, targetRadius = 33) {
+    const angle = Math.atan2(toY - fromY, toX - fromX);
+    const ax = toX - Math.cos(angle) * targetRadius;
+    const ay = toY - Math.sin(angle) * targetRadius;
+
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(ax - 12 * Math.cos(angle - Math.PI / 6), ay - 12 * Math.sin(angle - Math.PI / 6));
+    ctx.lineTo(ax - 12 * Math.cos(angle + Math.PI / 6), ay - 12 * Math.sin(angle + Math.PI / 6));
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+}
+
 function drawRelationshipGraph() {
     const canvas = document.getElementById('bm2_graph_canvas');
     if (!canvas) return;
@@ -1734,8 +1831,8 @@ function drawRelationshipGraph() {
     ctx.translate(graphView.offsetX, graphView.offsetY);
     ctx.scale(graphView.scale, graphView.scale);
 
-    // 1. Draw Colored Edges (Relationships)
-    charData.relationships.forEach((rel, idx) => {
+    // 1. Draw Edges
+    charData.relationships.forEach((rel) => {
         const fromNode = charData.nodes.find((n) => n.id === rel.fromId);
         const toNode = charData.nodes.find((n) => n.id === rel.toId);
         if (!fromNode || !toNode) return;
@@ -1746,43 +1843,33 @@ function drawRelationshipGraph() {
         const x2 = toNode.x || 400;
         const y2 = toNode.y || 180;
 
+        const isCrush = rel.role === 'crush';
+        const mutCfg = isCrush ? (CRUSH_MUTUALITY[rel.mutualStatus] || CRUSH_MUTUALITY.secret_one_sided) : null;
+        const useDashed = isCrush ? Boolean(mutCfg?.dashed) : Boolean(roleCfg.dashed);
+
         ctx.save();
         ctx.strokeStyle = roleCfg.color;
         ctx.lineWidth = 3;
-        if (roleCfg.dashed) {
-            ctx.setLineDash([7, 5]);
-        } else {
-            ctx.setLineDash([]);
-        }
-
+        ctx.setLineDash(useDashed ? [7, 5] : []);
         ctx.beginPath();
         ctx.moveTo(x1, y1);
         ctx.lineTo(x2, y2);
         ctx.stroke();
         ctx.restore();
 
-        // Draw directional arrow for Parent -> Child / Mentor
+        // Arrows
         if (roleCfg.directed) {
-            const angle = Math.atan2(y2 - y1, x2 - x1);
-            const targetRadius = 33;
-            const ax = x2 - Math.cos(angle) * targetRadius;
-            const ay = y2 - Math.sin(angle) * targetRadius;
-
-            ctx.save();
-            ctx.fillStyle = roleCfg.color;
-            ctx.beginPath();
-            ctx.moveTo(ax, ay);
-            ctx.lineTo(ax - 12 * Math.cos(angle - Math.PI / 6), ay - 12 * Math.sin(angle - Math.PI / 6));
-            ctx.lineTo(ax - 12 * Math.cos(angle + Math.PI / 6), ay - 12 * Math.sin(angle + Math.PI / 6));
-            ctx.closePath();
-            ctx.fill();
-            ctx.restore();
+            drawArrowHead(ctx, x1, y1, x2, y2, roleCfg.color, 33);
+            if (isCrush && mutCfg?.bothArrows) {
+                drawArrowHead(ctx, x2, y2, x1, y1, roleCfg.color, 33);
+            }
         }
 
-        // Edge label in the middle
+        // Edge label
         const mx = (x1 + x2) / 2;
         const my = (y1 + y2) / 2 - 7;
-        const labelText = `${roleCfg.label} (${rel.satisfaction ?? 50}%)`;
+        const baseLabel = isCrush ? (mutCfg?.shortGraph || roleCfg.label) : roleCfg.label;
+        const labelText = `${baseLabel} (${rel.satisfaction ?? 50}%)`;
 
         ctx.save();
         ctx.font = 'bold 11px sans-serif';
@@ -1796,7 +1883,7 @@ function drawRelationshipGraph() {
         ctx.restore();
     });
 
-    // 2. Draw Nodes (Photo inside + Name below OR Name inside circle if no photo)
+    // 2. Draw Nodes
     const NODE_RADIUS = 30;
     for (const node of charData.nodes) {
         const x = node.x || 250;
@@ -1804,7 +1891,6 @@ function drawRelationshipGraph() {
         const typeCfg = NODE_TYPES[node.type] || NODE_TYPES.npc;
         const hasAvatar = Boolean(node.avatar && node.avatar.trim());
 
-        // Outer glowing ring
         ctx.save();
         ctx.beginPath();
         ctx.arc(x, y, NODE_RADIUS, 0, Math.PI * 2);
@@ -1818,7 +1904,6 @@ function drawRelationshipGraph() {
         ctx.restore();
 
         if (hasAvatar) {
-            // Load image into cache if needed
             let img = graphView.avatarCache[node.id];
             if (!img) {
                 img = new Image();
@@ -1837,7 +1922,6 @@ function drawRelationshipGraph() {
                 ctx.restore();
             }
 
-            // Name BELOW circle when photo is present
             ctx.save();
             ctx.font = 'bold 12px sans-serif';
             const tw = ctx.measureText(node.name).width;
@@ -1849,7 +1933,6 @@ function drawRelationshipGraph() {
             ctx.fillText(node.name, x, y + NODE_RADIUS + 13);
             ctx.restore();
         } else {
-            // No photo -> Name INSIDE the circle
             ctx.save();
             ctx.fillStyle = '#ffffff';
             ctx.font = 'bold 11.5px sans-serif';
@@ -1922,7 +2005,6 @@ function renderStyleTab() {
         `;
     }).join('');
 
-    // Render User's Custom Sliders
     const customSlidersHtml = (s.customSliders || [])
         .map((cs) => {
             const val = Number(sl.customValues?.[cs.id] ?? 50);
@@ -1972,7 +2054,6 @@ function renderStyleTab() {
         </div>
     `;
 
-    // Built-in sliders
     pane.querySelectorAll('.bm2_style_slider').forEach((inp) => {
         inp.addEventListener('input', (e) => {
             const key = inp.getAttribute('data-key');
@@ -1985,7 +2066,6 @@ function renderStyleTab() {
         });
     });
 
-    // Custom sliders
     pane.querySelectorAll('.bm2_custom_slider').forEach((inp) => {
         inp.addEventListener('input', (e) => {
             const cid = inp.getAttribute('data-cid');
@@ -2036,7 +2116,6 @@ function renderStyleTab() {
         updatePromptInjection();
     });
 
-    // Multi-genre tags
     document.getElementById('bm2_add_genre_btn')?.addEventListener('click', () => {
         const val = document.getElementById('bm2_new_genre_inp')?.value?.trim();
         if (!val) return;
@@ -2058,7 +2137,6 @@ function renderStyleTab() {
         });
     });
 
-    // Presets
     document.getElementById('bm2_preset_select')?.addEventListener('change', (e) => {
         const name = e.target.value;
         if (s.presets[name]) {
@@ -2174,9 +2252,6 @@ function renderThemeTab() {
     });
 }
 
-/**
- * Bind Settings Panel in Extensions Drawer
- */
 async function initSettingsPanel() {
     try {
         const container = document.getElementById('extensions_settings2') || document.getElementById('extensions_settings');
@@ -2231,9 +2306,6 @@ async function initSettingsPanel() {
     }
 }
 
-/**
- * Main Entry Point
- */
 function init() {
     const ctx = SillyTavern.getContext();
     getSettings();
@@ -2258,7 +2330,7 @@ function init() {
         });
     }
 
-    console.log(`[${MODULE_NAME}] v2.1.0 initialized.`);
+    console.log(`[${MODULE_NAME}] v2.1.2 initialized.`);
 }
 
 jQuery(() => {
