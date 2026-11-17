@@ -1,12 +1,12 @@
 {
-    "display_name": "BlueMoon — Relationships, Presets & Custom UI",
-    "loading_order": 200,
+    "display_name": "BlueMoon: Relationships, Graph & Style",
+    "loading_order": 50,
     "requires": [],
     "optional": [],
     "js": "index.js",
     "css": "style.css",
-    "author": "freir1337",
-    "version": "2.0.0",
+    "author": "Тристис",
+    "version": "2.1.0",
     "homePage": "https://github.com/freir1337/bluemoon",
-    "generate_interceptor": "blueMoonInterceptor"
+    "auto_update": true
 }
