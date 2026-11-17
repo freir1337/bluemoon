@@ -1,43 +1,97 @@
-<div id="bluemoon-settings-wrapper">
-    <div class="inline-drawer">
-        <div class="inline-drawer-toggle inline-drawer-header">
-            <b>🌙 BlueMoon — Черты и отношения персонажей</b>
-            <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+<div class="inline-drawer bm_settings_drawer">
+    <div class="inline-drawer-toggle inline-drawer-header">
+        <b>🌙 BlueMoon — Отношения, Пресеты и Темы</b>
+        <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+    </div>
+    <div class="inline-drawer-content bm_drawer_body">
+        <div class="bm_card">
+            <div class="bm_header_row">
+                <div class="bm_title_group">
+                    <span class="bm_badge">BlueMoon v2.0</span>
+                    <h4 class="bm_heading">Центр управления BlueMoon</h4>
+                </div>
+                <label class="bm_switch" title="Включить или выключить BlueMoon">
+                    <input type="checkbox" id="bm_enabled" />
+                    <span class="bm_slider_toggle"></span>
+                </label>
+            </div>
+            <p class="bm_subtext">
+                Также открывается через <b>Волшебную палочку (🪄)</b> на нижней панели чата или кнопкой 🌙 на экране.
+            </p>
+            <div class="bm_button_grid" style="margin-top: 10px;">
+                <button type="button" id="bm_open_hub_btn" class="bm_btn bm_btn_primary">
+                    <i class="fa-solid fa-moon"></i> Открыть главное окно BlueMoon
+                </button>
+            </div>
         </div>
-        <div class="inline-drawer-content">
-            <div style="padding: 10px 0;">
-                <label class="checkbox_label" title="Включить или отключить расширение BlueMoon">
-                    <input id="bluemoon-enabled-toggle" type="checkbox" />
-                    <span>Включить BlueMoon</span>
-                </label>
-                <hr class="sysHR"/>
-                <div style="margin-bottom: 10px;">
-                    <label for="bluemoon-panel-position" style="display:block; margin-bottom:4px;">Положение панели на ПК:</label>
-                    <select id="bluemoon-panel-position" class="text_pole" style="width:100%;">
-                        <option value="right">Справа</option>
-                        <option value="left">Слева</option>
-                    </select>
+
+        <div class="bm_card">
+            <div class="bm_section_title">Активные модули</div>
+
+            <label class="bm_toggle_row" for="bm_rel_module_enabled">
+                <div class="bm_toggle_info">
+                    <span class="bm_toggle_name">💞 Скрытый трекер отношений и дат</span>
+                    <span class="bm_toggle_desc">Индивидуально для каждого бота: роль, даты начала/свадьбы/рождения, подарки и % тепла</span>
                 </div>
-                <div style="margin-bottom: 10px;">
-                    <label style="display:block; margin-bottom:4px;">Сила изменения отношений: <span id="bluemoon-rel-update-strength-val">5</span>%</label>
-                    <input id="bluemoon-rel-update-strength" type="range" min="1" max="20" value="5" style="width:100%;" />
+                <input type="checkbox" id="bm_rel_module_enabled" class="bm_checkbox" />
+            </label>
+
+            <label class="bm_toggle_row" for="bm_auto_track_rel">
+                <div class="bm_toggle_info">
+                    <span class="bm_toggle_name">📈 Авто-колебание удовлетворённости (%)</span>
+                    <span class="bm_toggle_desc">ИИ автоматически повышает или понижает процент отношений после ответов бота</span>
                 </div>
-                <label class="checkbox_label">
-                    <input id="bluemoon-auto-rel" type="checkbox" />
-                    <span>ИИ автоматически меняет отношения</span>
-                </label>
-                <label class="checkbox_label">
-                    <input id="bluemoon-show-prompt" type="checkbox" />
-                    <span>Показывать промпт в чате (отладка)</span>
-                </label>
-                <hr class="sysHR"/>
-                <div class="flex-container">
-                    <input id="bluemoon-open-panel-btn" class="menu_button" type="button" value="🌙 Открыть панель BlueMoon" />
-                    <input id="bluemoon-reset-all-btn" class="menu_button" type="button" value="🔄 Сбросить всё" />
+                <input type="checkbox" id="bm_auto_track_rel" class="bm_checkbox" />
+            </label>
+
+            <label class="bm_toggle_row" for="bm_style_module_enabled">
+                <div class="bm_toggle_info">
+                    <span class="bm_toggle_name">🎚️ Ползунки и пресеты стиля</span>
+                    <span class="bm_toggle_desc">Включает ползунки динамики сюжета, реализма, ощущений и заметок</span>
                 </div>
-                <small style="color: var(--SmartThemeQuoteColor, #aaa); margin-top: 8px; display: block;">
-                    Также используйте кнопку 🌙 в правом нижнем углу экрана
-                </small>
+                <input type="checkbox" id="bm_style_module_enabled" class="bm_checkbox" />
+            </label>
+
+            <label class="bm_toggle_row" for="bm_show_fab">
+                <div class="bm_toggle_info">
+                    <span class="bm_toggle_name">🌙 Плавающая кнопка на экране</span>
+                    <span class="bm_toggle_desc">Показывать круглую кнопку 🌙 поверх чата (в меню палочки 🪄 пункт остаётся всегда)</span>
+                </div>
+                <input type="checkbox" id="bm_show_fab" class="bm_checkbox" />
+            </label>
+
+            <div class="bm_field_block">
+                <label class="bm_field_label" for="bm_max_delta">
+                    Максимальный шаг изменения отношений за 1 ход: <span id="bm_max_delta_val">5</span>%
+                </label>
+                <input type="range" id="bm_max_delta" class="bm_range" min="1" max="20" value="5" />
+            </div>
+        </div>
+
+        <div class="bm_card">
+            <div class="bm_section_title">API-подключение (Connection Profiles)</div>
+            <p class="bm_subtext">
+                Безопасная работа через внутренние сервисы SillyTavern без доступа к вашим ключам.
+            </p>
+
+            <div class="bm_field_block">
+                <label class="bm_field_label" for="bm_api_mode">Источник API для трекера отношений</label>
+                <select id="bm_api_mode" class="bm_select">
+                    <option value="main">Текущее активное подключение Таверны (Main API)</option>
+                    <option value="profile">Профиль из Connection Manager (Connection Profiles)</option>
+                </select>
+            </div>
+
+            <div class="bm_field_block" id="bm_profile_block" style="display: none;">
+                <div class="bm_label_with_btn">
+                    <label class="bm_field_label" for="bm_connection_profile">Профиль подключения Таверны</label>
+                    <button type="button" id="bm_refresh_profiles" class="bm_icon_btn" title="Обновить список профилей">
+                        <i class="fa-solid fa-rotate"></i>
+                    </button>
+                </div>
+                <select id="bm_connection_profile" class="bm_select">
+                    <option value="">-- Выберите профиль подключения --</option>
+                </select>
             </div>
         </div>
     </div>
