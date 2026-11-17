@@ -1,5 +1,5 @@
 /* ==========================================================================
-   BlueMoon v2.1 — Mobile-First UI, Interactive Graph & Custom Sliders
+   BlueMoon v2.2 — Mobile-First UI, Bipolar Meter (-100%..+100%), Graph & Style
    Prefix: .bm2_
    ========================================================================== */
 
@@ -16,7 +16,6 @@
     --bm2-success: #22c55e;
 }
 
-/* Settings Drawer */
 .bm2_settings_wrapper .bm2_drawer_body {
     display: flex;
     flex-direction: column;
@@ -79,7 +78,7 @@
     gap: 8px;
 }
 
-/* Main Overlay Window (Mobile-safe below ST top bar) */
+/* Main Overlay Window */
 #bm2_overlay {
     position: fixed;
     inset: 0;
@@ -112,7 +111,6 @@
     overflow: hidden;
 }
 
-/* Sticky Header */
 .bm2_header {
     display: flex;
     align-items: center;
@@ -162,7 +160,6 @@
     cursor: pointer;
 }
 
-/* Navigation Tabs (4 tabs on mobile) */
 .bm2_tabs {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -186,7 +183,7 @@
     align-items: center;
     justify-content: center;
     gap: 4px;
-    padding: 4px 4px;
+    padding: 4px;
     text-align: center;
     line-height: 1.15;
 }
@@ -197,7 +194,6 @@
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
 }
 
-/* Body & Cards */
 .bm2_body {
     padding: 12px;
     overflow-y: auto;
@@ -244,7 +240,6 @@
     line-height: 1.35;
 }
 
-/* Buttons & Inputs */
 .bm2_btn_row {
     display: flex;
     flex-wrap: wrap;
@@ -319,7 +314,7 @@
     }
 }
 
-/* Participants Strip (Bot, Persona, NPCs) */
+/* Participants Strip */
 .bm2_nodes_strip {
     display: flex;
     gap: 10px;
@@ -420,34 +415,62 @@
     font-weight: 600;
     background: var(--bm2-accent-soft);
     color: var(--bm2-text);
+    display: inline-block;
+    margin-top: 3px;
 }
 
-/* Satisfaction Progress Bar */
+/* ==========================================================================
+   BIPOLAR SATISFACTION / HOSTILITY METER (-100% to +100%)
+   ========================================================================== */
 .bm2_meter_wrap {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 5px;
 }
 
 .bm2_meter_label {
     display: flex;
     justify-content: space-between;
+    align-items: center;
     font-size: 0.78rem;
     color: var(--bm2-muted);
 }
 
-.bm2_meter_bar {
-    height: 9px;
+.bm2_meter_bipolar_bar {
+    position: relative;
+    height: 11px;
     width: 100%;
     background: rgba(255, 255, 255, 0.08);
     border-radius: 999px;
     overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.bm2_meter_fill {
-    height: 100%;
-    border-radius: 999px;
-    transition: width 0.35s ease;
+/* Center 0% divider tick */
+.bm2_meter_zero_tick {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: rgba(255, 255, 255, 0.45);
+    z-index: 2;
+    transform: translateX(-50%);
+}
+
+.bm2_meter_bipolar_fill {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    transition: width 0.35s ease, left 0.35s ease;
+}
+
+.bm2_meter_scale_hints {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.68rem;
+    color: var(--bm2-muted);
+    opacity: 0.75;
 }
 
 .bm2_delta_note {
@@ -456,6 +479,11 @@
     background: rgba(16, 185, 129, 0.12);
     border-radius: 8px;
     padding: 5px 8px;
+}
+
+.bm2_delta_note.bm2_delta_neg {
+    color: #fecaca;
+    background: rgba(239, 68, 68, 0.15);
 }
 
 .bm2_dates_grid,
@@ -484,7 +512,6 @@
 /* ==========================================================================
    OBSIDIAN-LIKE RELATIONSHIP GRAPH (Tab 2)
    ========================================================================== */
-
 .bm2_graph_wrap {
     position: relative;
     width: 100%;
@@ -553,7 +580,6 @@
 /* ==========================================================================
    SLIDERS & GENRE TAGS (Tab 3)
    ========================================================================== */
-
 .bm2_slider_item {
     display: flex;
     flex-direction: column;
@@ -613,7 +639,6 @@
     font-size: 0.82rem;
 }
 
-/* Theme Swatches */
 .bm2_theme_grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
