@@ -1,6 +1,5 @@
 /**
- * BlueMoon v2.1.2 — Multi-Node Relationship Tracker, Interactive Graph, Custom Sliders & Themes
- * Added: 5 Crush / Attraction modes (Secret One-Sided, Open One-Sided, Unrequited, Secret Mutual, Open Mutual)
+ * BlueMoon v2.2.0 — Multi-Node Relationship Tracker (-100% to +100%), Interactive Graph, Custom Sliders & Themes
  * Author: Тристис
  */
 
@@ -65,6 +64,7 @@ const RELATIONSHIP_ROLES = {
         color: '#94a3b8',
         dashed: false,
         directed: false,
+        defaultSat: 0,
         dates: [{ key: 'metDate', label: 'Когда познакомились' }],
     },
     friends: {
@@ -73,6 +73,7 @@ const RELATIONSHIP_ROLES = {
         color: '#2dd4bf',
         dashed: false,
         directed: false,
+        defaultSat: 45,
         dates: [
             { key: 'startDate', label: 'Начало дружбы' },
             { key: 'endDate', label: 'Конец дружбы (если в ссоре)' },
@@ -84,6 +85,7 @@ const RELATIONSHIP_ROLES = {
         color: '#38bdf8',
         dashed: false,
         directed: false,
+        defaultSat: 75,
         dates: [{ key: 'startDate', label: 'С какого момента дружат' }],
     },
     crush: {
@@ -93,6 +95,7 @@ const RELATIONSHIP_ROLES = {
         dashed: false,
         directed: true,
         hasMutuality: true,
+        defaultSat: 50,
         dates: [
             { key: 'crushStart', label: 'Когда зародилась симпатия' },
             { key: 'confessionDate', label: 'Признание / Важный момент' },
@@ -104,6 +107,7 @@ const RELATIONSHIP_ROLES = {
         color: '#ef4444',
         dashed: false,
         directed: false,
+        defaultSat: -65,
         dates: [
             { key: 'startDate', label: 'Начало вражды' },
             { key: 'endDate', label: 'Перемирие / Конец вражды' },
@@ -115,6 +119,7 @@ const RELATIONSHIP_ROLES = {
         color: '#ec4899',
         dashed: false,
         directed: false,
+        defaultSat: 70,
         dates: [
             { key: 'datingStart', label: 'Начали встречаться' },
             { key: 'firstKiss', label: 'Первый поцелуй / свидание' },
@@ -126,6 +131,7 @@ const RELATIONSHIP_ROLES = {
         color: '#f472b6',
         dashed: false,
         directed: false,
+        defaultSat: 80,
         dates: [
             { key: 'datingStart', label: 'Начали встречаться' },
             { key: 'engagedDate', label: 'Дата помолвки' },
@@ -137,6 +143,7 @@ const RELATIONSHIP_ROLES = {
         color: '#fbbf24',
         dashed: false,
         directed: false,
+        defaultSat: 85,
         dates: [
             { key: 'datingStart', label: 'Начали встречаться' },
             { key: 'weddingDate', label: 'Дата свадьбы / росписи' },
@@ -148,6 +155,7 @@ const RELATIONSHIP_ROLES = {
         color: '#f97316',
         dashed: true,
         directed: false,
+        defaultSat: -30,
         dates: [
             { key: 'datingStart', label: 'Когда были вместе' },
             { key: 'breakupDate', label: 'Когда расстались / развелись' },
@@ -159,6 +167,7 @@ const RELATIONSHIP_ROLES = {
         color: '#f43f5e',
         dashed: false,
         directed: true,
+        defaultSat: 60,
         dates: [{ key: 'childBirthDate', label: 'Дата рождения ребёнка' }],
     },
     adopted_child: {
@@ -167,6 +176,7 @@ const RELATIONSHIP_ROLES = {
         color: '#22c55e',
         dashed: false,
         directed: true,
+        defaultSat: 60,
         dates: [{ key: 'adoptedDate', label: 'Дата усыновления / опеки' }],
     },
     godparent: {
@@ -175,6 +185,7 @@ const RELATIONSHIP_ROLES = {
         color: '#a78bfa',
         dashed: false,
         directed: true,
+        defaultSat: 55,
         dates: [{ key: 'metDate', label: 'С какого момента' }],
     },
     siblings: {
@@ -183,6 +194,7 @@ const RELATIONSHIP_ROLES = {
         color: '#60a5fa',
         dashed: false,
         directed: false,
+        defaultSat: 50,
         dates: [{ key: 'birthInfo', label: 'Памятная семейная дата' }],
     },
 };
@@ -353,6 +365,28 @@ const graphView = {
     avatarCache: {},
 };
 
+function clampSat(val) {
+    const n = Number(val);
+    if (!Number.isFinite(n)) return 0;
+    return Math.max(-100, Math.min(100, Math.round(n)));
+}
+
+function formatSignedPercent(val) {
+    const n = clampSat(val);
+    return n > 0 ? `+${n}%` : `${n}%`;
+}
+
+function getSatisfactionStatusText(sat) {
+    const n = clampSat(sat);
+    if (n >= 75) return 'Глубокая привязанность / Любовь';
+    if (n >= 35) return 'Теплота и доверие';
+    if (n >= 10) return 'Лёгкая симпатия';
+    if (n > -10) return 'Нейтрально / Дистанция';
+    if (n > -40) return 'Холодок / Напряжение';
+    if (n > -75) return 'Ссора / Обида / Вражда';
+    return 'Острая вражда / Ненависть';
+}
+
 function getSettings() {
     const context = SillyTavern.getContext();
     if (!context.extensionSettings[MODULE_NAME]) {
@@ -505,6 +539,7 @@ function getCurrentCharData() {
         if (rel.role === 'crush' && !rel.mutualStatus) {
             rel.mutualStatus = 'secret_one_sided';
         }
+        rel.satisfaction = clampSat(rel.satisfaction);
     }
 
     return data;
@@ -515,7 +550,7 @@ function findNodeName(charData, nodeId) {
 }
 
 /**
- * Compile hidden English prompt for the AI
+ * Compile hidden English prompt for the AI (Supports -100% to +100% scale)
  */
 function compilePromptText() {
     const s = getSettings();
@@ -541,13 +576,15 @@ function compilePromptText() {
                 const roleCfg = RELATIONSHIP_ROLES[rel.role] || RELATIONSHIP_ROLES.strangers;
                 const fromName = findNodeName(charData, rel.fromId);
                 const toName = findNodeName(charData, rel.toId);
-                const sat = Number.isFinite(Number(rel.satisfaction)) ? Number(rel.satisfaction) : 50;
+                const sat = clampSat(rel.satisfaction);
 
-                let warmthTone = 'Neutral / moderate warmth';
-                if (sat >= 85) warmthTone = 'Deep affection, high trust, strong warmth';
-                else if (sat >= 65) warmthTone = 'Warm, supportive, positive connection';
-                else if (sat <= 20) warmthTone = 'Hostile, cold, estranged, bitter resentment';
-                else if (sat <= 40) warmthTone = 'Tense, guarded, strained relationship';
+                let warmthTone = 'Neutral / cautious distance';
+                if (sat >= 75) warmthTone = 'Deep affection, strong devotion, high trust and warmth';
+                else if (sat >= 35) warmthTone = 'Warm, supportive, positive and friendly connection';
+                else if (sat >= 10) warmthTone = 'Mild sympathy, polite warmth';
+                else if (sat <= -75) warmthTone = 'Severe hostility, hatred, bitter enmity, active conflict';
+                else if (sat <= -40) warmthTone = 'Quarrel, strong resentment, anger, unresolved conflict';
+                else if (sat <= -10) warmthTone = 'Cold, tense, guarded, irritated or estranged';
 
                 let roleDescription = `Role = ${roleCfg.label}`;
                 let arrow = roleCfg.directed ? '-->' : '<-->';
@@ -576,9 +613,9 @@ function compilePromptText() {
                     }
                 }
 
-                let entry = `- Connection "${fromName}" ${arrow} "${toName}": ${roleDescription} | Relationship Warmth/Satisfaction = ${sat}% (${warmthTone}).`;
+                let entry = `- Connection "${fromName}" ${arrow} "${toName}": ${roleDescription} | Relationship Scale (-100% hostility to +100% warmth) = ${formatSignedPercent(sat)} (${warmthTone}).`;
                 if (dateStrings.length) entry += `\n  Important Dates: ${dateStrings.join('; ')}.`;
-                if (memStrings.length) entry += `\n  Shared History, Gifts & Details: ${memStrings.join(' | ')}.`;
+                if (memStrings.length) entry += `\n  Shared History, Gifts & Grievances: ${memStrings.join(' | ')}.`;
                 relLines.push(entry);
             }
         }
@@ -713,6 +750,9 @@ async function runModelPrompt(systemPrompt, userPrompt, maxTokens = 500) {
     throw new Error('API генерации недоступно');
 }
 
+/**
+ * Auto-analyze satisfaction delta (-100 to +100 scale)
+ */
 async function analyzeRelationshipDelta(manualTrigger = false) {
     if (isAnalyzing) return;
     const s = getSettings();
@@ -740,14 +780,17 @@ async function analyzeRelationshipDelta(manualTrigger = false) {
         to: findNodeName(charData, r.toId),
         role: RELATIONSHIP_ROLES[r.role]?.label || r.role,
         mutualStatus: r.role === 'crush' ? (r.mutualStatus || 'secret_one_sided') : undefined,
-        satisfaction: r.satisfaction,
+        satisfaction: clampSat(r.satisfaction),
     }));
 
     const sysPrompt = `You are an objective relationship tracker for a roleplay story.
-Analyze the latest chat excerpt and determine if the relationship warmth/satisfaction (0 to 100) between the listed character pairs should shift.
+The relationship scale ranges from -100 (extreme hostility/hatred) through 0 (neutral/strangers) to +100 (deep love/devotion).
+Analyze the latest chat excerpt and determine if the relationship value between the listed character pairs should shift up or down.
 Rules:
-- Single scene delta must be between -8 and +8 (0 if no meaningful change).
-- Return ONLY a valid JSON array: [{"id": "...", "delta": 2, "reason": "Краткая причина на русском (до 6 слов)"}]
+- Single scene delta must be between -12 and +12 (0 if no meaningful change).
+- Quarrels, insults, coldness, betrayal, or hostility MUST produce a negative delta (e.g. -5).
+- Care, warmth, reconciliation, or affection MUST produce a positive delta (e.g. +4).
+- Return ONLY a valid JSON array: [{"id": "...", "delta": -4, "reason": "Краткая причина на русском (до 6 слов)"}]
 - Do not include markdown fences.`;
 
     const usrPrompt = `Tracked Relationships:\n${JSON.stringify(currentList)}\n\nLatest Chat Excerpt:\n${recentMessages}`;
@@ -767,9 +810,10 @@ Rules:
         for (const item of parsed) {
             const rel = charData.relationships.find((r) => r.id === item.id);
             if (!rel) continue;
-            const delta = Math.max(-10, Math.min(10, Number(item.delta) || 0));
+            const delta = Math.max(-15, Math.min(15, Number(item.delta) || 0));
             if (delta !== 0 || manualTrigger) {
-                rel.satisfaction = Math.max(0, Math.min(100, (Number(rel.satisfaction) || 50) + delta));
+                rel.satisfaction = clampSat(clampSat(rel.satisfaction) + delta);
+                rel.lastDeltaSign = delta;
                 if (item.reason) {
                     const sign = delta > 0 ? `+${delta}%` : `${delta}%`;
                     rel.lastDeltaNote = `${sign}: ${item.reason}`;
@@ -783,7 +827,7 @@ Rules:
             updatePromptInjection();
             renderRelationshipsTab();
             drawRelationshipGraph();
-            if (manualTrigger) toastr.success('Удовлетворённость в отношениях обновлена', 'BlueMoon');
+            if (manualTrigger) toastr.success('Шкала отношений обновлена', 'BlueMoon');
         }
     } catch (err) {
         console.error(`[${MODULE_NAME}] analyzeRelationshipDelta error:`, err);
@@ -794,7 +838,7 @@ Rules:
 }
 
 /**
- * AI Auto-Builder for the Obsidian Relationship Graph
+ * AI Auto-Builder for the Obsidian Relationship Graph (-100 to +100)
  */
 async function autoBuildGraphWithAI() {
     if (isAnalyzing) return;
@@ -825,6 +869,7 @@ Read the character description and recent chat messages. Identify all characters
 Allowed role keys:
 - strangers, friends, best_friends, crush, enemies, dating, engaged, married, exes, parent_child, adopted_child, godparent, siblings.
 Notes:
+- "satisfaction" scale is from -100 (hatred/enemies/bitter quarrel) through 0 (neutral/strangers) to +100 (deep love/trust). Use negative values (e.g. -65) for enemies, rivals, or bitter exes!
 - For parent_child, adopted_child, godparent: "from" MUST be the parent/mentor and "to" MUST be the child.
 - For "crush": "from" is the one who has feelings, "to" is the target of affection, and include "mutualStatus" as one of: "secret_one_sided", "open_one_sided", "unrequited", "secret_mutual", "open_mutual".
 Return ONLY valid JSON without markdown fences:
@@ -835,7 +880,7 @@ Return ONLY valid JSON without markdown fences:
     {"name": "NPC Name", "type": "npc"}
   ],
   "relationships": [
-    {"from": "Name 1", "to": "Name 2", "role": "crush", "mutualStatus": "secret_one_sided", "satisfaction": 65, "note": "Краткая суть связи на русском"}
+    {"from": "Name 1", "to": "Name 2", "role": "enemies", "satisfaction": -60, "note": "Краткая суть связи на русском"}
   ]
 }`;
 
@@ -882,23 +927,27 @@ Return ONLY valid JSON without markdown fences:
             if (!fromNode || !toNode || fromNode.id === toNode.id) continue;
 
             const role = RELATIONSHIP_ROLES[r.role] ? r.role : 'strangers';
+            const roleCfg = RELATIONSHIP_ROLES[role];
             const mutualStatus =
                 role === 'crush' && CRUSH_MUTUALITY[r.mutualStatus]
                     ? r.mutualStatus
                     : 'secret_one_sided';
 
+            const defaultSat = roleCfg?.defaultSat ?? 0;
+            const satValue = Number.isFinite(Number(r.satisfaction))
+                ? clampSat(r.satisfaction)
+                : defaultSat;
+
             const existingRel = charData.relationships.find(
                 (er) =>
                     (er.fromId === fromNode.id && er.toId === toNode.id) ||
-                    (!RELATIONSHIP_ROLES[role]?.directed && er.fromId === toNode.id && er.toId === fromNode.id)
+                    (!roleCfg?.directed && er.fromId === toNode.id && er.toId === fromNode.id)
             );
 
             if (existingRel) {
                 existingRel.role = role;
                 if (role === 'crush') existingRel.mutualStatus = mutualStatus;
-                if (Number.isFinite(Number(r.satisfaction))) {
-                    existingRel.satisfaction = Math.max(0, Math.min(100, Number(r.satisfaction)));
-                }
+                existingRel.satisfaction = satValue;
                 if (r.note) existingRel.lastDeltaNote = r.note;
             } else {
                 charData.relationships.push({
@@ -907,7 +956,7 @@ Return ONLY valid JSON without markdown fences:
                     toId: toNode.id,
                     role,
                     mutualStatus: role === 'crush' ? mutualStatus : undefined,
-                    satisfaction: Math.max(0, Math.min(100, Number(r.satisfaction) || 55)),
+                    satisfaction: satValue,
                     dates: {},
                     memories: r.note ? [{ category: 'event', text: r.note }] : [],
                     lastDeltaNote: r.note || '',
@@ -1115,10 +1164,36 @@ function openPromptPreviewModal() {
     });
 }
 
-function getMeterColor(val) {
-    if (val >= 75) return 'linear-gradient(90deg, #ec4899, #a855f7)';
-    if (val >= 45) return 'linear-gradient(90deg, #6366f1, #38bdf8)';
-    return 'linear-gradient(90deg, #ef4444, #f97316)';
+/**
+ * Render Bipolar Meter HTML (-100% left red to +100% right pink/purple, 0% center)
+ */
+function renderBipolarMeterHtml(sat) {
+    const val = clampSat(sat);
+    const absWidth = Math.abs(val) / 2; // 0..50% of total bar width
+    const leftPos = val >= 0 ? 50 : 50 - absWidth;
+    const bgGradient =
+        val >= 0
+            ? 'linear-gradient(90deg, #6366f1, #ec4899)'
+            : 'linear-gradient(90deg, #dc2626, #f97316)';
+    const valColor = val > 0 ? '#f472b6' : val < 0 ? '#f87171' : '#a59ec4';
+
+    return `
+        <div class="bm2_meter_wrap">
+            <div class="bm2_meter_label">
+                <span>${escapeHtml(getSatisfactionStatusText(val))}</span>
+                <b style="color:${valColor};">${formatSignedPercent(val)}</b>
+            </div>
+            <div class="bm2_meter_bipolar_bar">
+                <div class="bm2_meter_zero_tick" title="0% (Нейтрально)"></div>
+                <div class="bm2_meter_bipolar_fill" style="left:${leftPos}%; width:${absWidth}%; background:${bgGradient};"></div>
+            </div>
+            <div class="bm2_meter_scale_hints">
+                <span>⚔️ -100% (Вражда)</span>
+                <span>0%</span>
+                <span>💖 +100% (Любовь)</span>
+            </div>
+        </div>
+    `;
 }
 
 /**
@@ -1167,7 +1242,7 @@ function renderRelationshipsTab() {
         relCardsHtml = charData.relationships
             .map((rel) => {
                 const roleCfg = RELATIONSHIP_ROLES[rel.role] || RELATIONSHIP_ROLES.strangers;
-                const sat = Math.max(0, Math.min(100, Number(rel.satisfaction) || 50));
+                const sat = clampSat(rel.satisfaction);
                 const fromName = findNodeName(charData, rel.fromId);
                 const toName = findNodeName(charData, rel.toId);
 
@@ -1196,6 +1271,8 @@ function renderRelationshipsTab() {
                     })
                     .join('');
 
+                const isNegDelta = String(rel.lastDeltaNote || '').trim().startsWith('-');
+
                 return `
                 <div class="bm2_rel_card" data-rel-id="${escapeHtml(rel.id)}">
                     <div class="bm2_rel_top">
@@ -1209,17 +1286,9 @@ function renderRelationshipsTab() {
                         <button type="button" class="bm2_btn bm2_btn_small bm2_edit_rel_btn" data-id="${escapeHtml(rel.id)}">✏️ Изменить</button>
                     </div>
 
-                    <div class="bm2_meter_wrap">
-                        <div class="bm2_meter_label">
-                            <span>Теплота / Удовлетворённость</span>
-                            <b>${sat}%</b>
-                        </div>
-                        <div class="bm2_meter_bar">
-                            <div class="bm2_meter_fill" style="width:${sat}%; background:${getMeterColor(sat)};"></div>
-                        </div>
-                    </div>
+                    ${renderBipolarMeterHtml(sat)}
 
-                    ${rel.lastDeltaNote ? `<div class="bm2_delta_note">📈 ${escapeHtml(rel.lastDeltaNote)}</div>` : ''}
+                    ${rel.lastDeltaNote ? `<div class="bm2_delta_note ${isNegDelta ? 'bm2_delta_neg' : ''}">${isNegDelta ? '📉' : '📈'} ${escapeHtml(rel.lastDeltaNote)}</div>` : ''}
                     ${datesHtml ? `<div class="bm2_dates_grid">${datesHtml}</div>` : ''}
                     ${memoriesHtml ? `<div class="bm2_memories_list">${memoriesHtml}</div>` : ''}
                 </div>
@@ -1297,7 +1366,7 @@ function openNodeEditor(nodeId) {
     pane.innerHTML = `
         <div class="bm2_card">
             <div class="bm2_card_title">
-                <span>${existing ? '✏️ Редактировать участника' : '➕ Новый участника (NPC / Персона)'}</span>
+                <span>${existing ? '✏️ Редактировать участника' : '➕ Новый участник (NPC / Персона)'}</span>
             </div>
 
             <div class="bm2_field_group">
@@ -1393,7 +1462,7 @@ function openNodeEditor(nodeId) {
 }
 
 /**
- * Relationship Editor (with Crush Directionality & 5 Mutuality Modes)
+ * Relationship Editor (Supports -100% to +100% slider & Crush Mutuality)
  */
 function openRelationshipEditor(relId) {
     const pane = document.getElementById('bm2_pane_rel');
@@ -1412,13 +1481,14 @@ function openRelationshipEditor(relId) {
               toId: defaultTo,
               role: 'crush',
               mutualStatus: 'secret_one_sided',
-              satisfaction: 65,
+              satisfaction: 50,
               dates: {},
               memories: [],
               lastDeltaNote: '',
           };
 
     if (!rel.mutualStatus) rel.mutualStatus = 'secret_one_sided';
+    rel.satisfaction = clampSat(rel.satisfaction);
 
     function renderForm() {
         const roleCfg = RELATIONSHIP_ROLES[rel.role] || RELATIONSHIP_ROLES.strangers;
@@ -1525,10 +1595,15 @@ function openRelationshipEditor(relId) {
 
                 <div class="bm2_slider_item">
                     <div class="bm2_slider_head">
-                        <span>💖 Теплота / Сила чувств</span>
-                        <span class="bm2_slider_val" id="bm2_edit_sat_val">${rel.satisfaction}%</span>
+                        <span id="bm2_edit_sat_status">${escapeHtml(getSatisfactionStatusText(rel.satisfaction))}</span>
+                        <span class="bm2_slider_val" id="bm2_edit_sat_val">${formatSignedPercent(rel.satisfaction)}</span>
                     </div>
-                    <input type="range" id="bm2_edit_sat" class="bm2_range" min="0" max="100" value="${rel.satisfaction}" />
+                    <input type="range" id="bm2_edit_sat" class="bm2_range" min="-100" max="100" step="1" value="${rel.satisfaction}" />
+                    <div class="bm2_meter_scale_hints">
+                        <span>⚔️ -100% (Вражда/Ссора)</span>
+                        <span>0% (Нейтрально)</span>
+                        <span>💖 +100% (Теплота)</span>
+                    </div>
                 </div>
 
                 <div class="bm2_grid_2">${dateInputsHtml}</div>
@@ -1564,7 +1639,7 @@ function openRelationshipEditor(relId) {
             if (document.getElementById('bm2_edit_mutual')) {
                 rel.mutualStatus = document.getElementById('bm2_edit_mutual').value;
             }
-            rel.satisfaction = Number(document.getElementById('bm2_edit_sat')?.value ?? 50);
+            rel.satisfaction = clampSat(document.getElementById('bm2_edit_sat')?.value ?? 0);
             pane.querySelectorAll('.bm2_rel_date_inp').forEach((inp) => {
                 rel.dates[inp.getAttribute('data-date-key')] = inp.value;
             });
@@ -1572,7 +1647,12 @@ function openRelationshipEditor(relId) {
 
         document.getElementById('bm2_edit_role')?.addEventListener('change', (e) => {
             syncDraft();
-            rel.role = e.target.value;
+            const newRole = e.target.value;
+            rel.role = newRole;
+            // Automatically suggest negative/positive default when switching to enemies/exes
+            if (!existing && RELATIONSHIP_ROLES[newRole]?.defaultSat !== undefined) {
+                rel.satisfaction = RELATIONSHIP_ROLES[newRole].defaultSat;
+            }
             renderForm();
         });
 
@@ -1581,8 +1661,9 @@ function openRelationshipEditor(relId) {
         });
 
         document.getElementById('bm2_edit_sat')?.addEventListener('input', (e) => {
-            rel.satisfaction = Number(e.target.value);
-            document.getElementById('bm2_edit_sat_val').textContent = `${rel.satisfaction}%`;
+            rel.satisfaction = clampSat(e.target.value);
+            document.getElementById('bm2_edit_sat_val').textContent = formatSignedPercent(rel.satisfaction);
+            document.getElementById('bm2_edit_sat_status').textContent = getSatisfactionStatusText(rel.satisfaction);
         });
 
         document.getElementById('bm2_add_mem_btn')?.addEventListener('click', () => {
@@ -1794,9 +1875,6 @@ function initGraphCanvasInteractions() {
     canvas.addEventListener('pointercancel', onEnd);
 }
 
-/**
- * Draw Obsidian + Colored Lines + Arrows + Photo/Text Circles on Canvas
- */
 function drawArrowHead(ctx, fromX, fromY, toX, toY, color, targetRadius = 33) {
     const angle = Math.atan2(toY - fromY, toX - fromX);
     const ax = toX - Math.cos(angle) * targetRadius;
@@ -1857,7 +1935,6 @@ function drawRelationshipGraph() {
         ctx.stroke();
         ctx.restore();
 
-        // Arrows
         if (roleCfg.directed) {
             drawArrowHead(ctx, x1, y1, x2, y2, roleCfg.color, 33);
             if (isCrush && mutCfg?.bothArrows) {
@@ -1865,11 +1942,10 @@ function drawRelationshipGraph() {
             }
         }
 
-        // Edge label
         const mx = (x1 + x2) / 2;
         const my = (y1 + y2) / 2 - 7;
         const baseLabel = isCrush ? (mutCfg?.shortGraph || roleCfg.label) : roleCfg.label;
-        const labelText = `${baseLabel} (${rel.satisfaction ?? 50}%)`;
+        const labelText = `${baseLabel} (${formatSignedPercent(rel.satisfaction)})`;
 
         ctx.save();
         ctx.font = 'bold 11px sans-serif';
@@ -2330,7 +2406,7 @@ function init() {
         });
     }
 
-    console.log(`[${MODULE_NAME}] v2.1.2 initialized.`);
+    console.log(`[${MODULE_NAME}] v2.2.0 initialized.`);
 }
 
 jQuery(() => {
