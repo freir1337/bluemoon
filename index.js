@@ -1,6 +1,7 @@
 /**
- * BlueMoon v2.3.0: Multi-Character & NPC Relationship Graph,
- * Obsidian Canvas, Bipolar Meter (-100%..+100%), Strict Style Enforcement & JSON Backup
+ * BlueMoon v2.4.0: Multi-Character & NPC Relationship Graph,
+ * True-Aspect Retina Obsidian Canvas, 16 Decorative Themes,
+ * Bipolar Meter (-100%..+100%), Strict Style Enforcement & JSON Backup
  * Author: Tristis (freir1337)
  */
 
@@ -17,16 +18,18 @@ const EXTENSION_FOLDER = (() => {
     }
 })();
 
-// 13 Relationship Roles
+// 13 Relationship Roles with Short Graph Badges so canvas labels never overlap
 const RELATIONSHIP_ROLES = {
     strangers: {
         label: 'Незнакомцы / Знакомые',
+        shortLabel: 'Знакомые',
         color: '#9aa5ce',
         directed: false,
         dateFields: [{ key: 'first_met', label: 'Дата первой встречи' }],
     },
     friends: {
         label: 'Друзья',
+        shortLabel: 'Друзья',
         color: '#7aa2f7',
         directed: false,
         dateFields: [
@@ -36,6 +39,7 @@ const RELATIONSHIP_ROLES = {
     },
     best_friends: {
         label: 'Лучшие друзья',
+        shortLabel: 'Лучшие друзья',
         color: '#2ac3de',
         directed: false,
         dateFields: [
@@ -45,6 +49,7 @@ const RELATIONSHIP_ROLES = {
     },
     crush: {
         label: 'Влюблённость / Симпатия 💘',
+        shortLabel: 'Симпатия 💘',
         color: '#ff9e64',
         directed: true,
         hasMutuality: true,
@@ -56,6 +61,7 @@ const RELATIONSHIP_ROLES = {
     },
     enemies: {
         label: 'Враги / Соперники',
+        shortLabel: 'Враги ⚔️',
         color: '#f7768e',
         directed: false,
         dateFields: [
@@ -65,6 +71,7 @@ const RELATIONSHIP_ROLES = {
     },
     dating: {
         label: 'Пара (Встречаются)',
+        shortLabel: 'Пара ❤️',
         color: '#ff7eb6',
         directed: false,
         dateFields: [
@@ -75,6 +82,7 @@ const RELATIONSHIP_ROLES = {
     },
     engaged: {
         label: 'Помолвлены',
+        shortLabel: 'Помолвлены 💍',
         color: '#e0af68',
         directed: false,
         dateFields: [
@@ -85,6 +93,7 @@ const RELATIONSHIP_ROLES = {
     },
     married: {
         label: 'Брак (Супруги)',
+        shortLabel: 'Брак 👑',
         color: '#ffd700',
         directed: false,
         dateFields: [
@@ -94,6 +103,7 @@ const RELATIONSHIP_ROLES = {
     },
     exes: {
         label: 'Бывшие / Развод',
+        shortLabel: 'Бывшие 💔',
         color: '#a9b1d6',
         directed: false,
         dashed: true,
@@ -104,12 +114,14 @@ const RELATIONSHIP_ROLES = {
     },
     parent_child: {
         label: 'Кровные родители → Ребёнок',
+        shortLabel: 'Родитель → Реб.',
         color: '#9ece6a',
         directed: true,
         dateFields: [{ key: 'birth_date', label: 'День рождения ребёнка' }],
     },
     adopted_child: {
         label: 'Усыновление / Опека → Ребёнок',
+        shortLabel: 'Опека → Реб.',
         color: '#73daca',
         directed: true,
         dateFields: [
@@ -119,12 +131,14 @@ const RELATIONSHIP_ROLES = {
     },
     godparent: {
         label: 'Крёстные / Наставник → Подопечный',
+        shortLabel: 'Наставник →',
         color: '#bb9af7',
         directed: true,
         dateFields: [{ key: 'christening_date', label: 'Дата крестин / начала наставничества' }],
     },
     siblings: {
         label: 'Брат / Сестра',
+        shortLabel: 'Брат / Сестра',
         color: '#c0caf5',
         directed: false,
         dateFields: [{ key: 'family_event', label: 'Общая семейная дата' }],
@@ -135,6 +149,7 @@ const RELATIONSHIP_ROLES = {
 const CRUSH_MUTUALITY = {
     secret_one_sided: {
         label: '🤫 Тайно влюблён(а) (в одну сторону, скрывает)',
+        shortLabel: '🤫 Тайно влюб.',
         directed: true,
         dashed: true,
         promptDesc: (from, to) =>
@@ -142,6 +157,7 @@ const CRUSH_MUTUALITY = {
     },
     open_one_sided: {
         label: '💘 Открытая симпатия (в одну сторону)',
+        shortLabel: '💘 Влюблён(а)',
         directed: true,
         dashed: false,
         promptDesc: (from, to) =>
@@ -149,6 +165,7 @@ const CRUSH_MUTUALITY = {
     },
     unrequited: {
         label: '💔 Безответно (невзаимно / отказ)',
+        shortLabel: '💔 Безответно',
         directed: true,
         dashed: true,
         promptDesc: (from, to) =>
@@ -156,6 +173,7 @@ const CRUSH_MUTUALITY = {
     },
     secret_mutual: {
         label: '🫣 Тайно обоюдно (оба влюблены, но оба скрывают)',
+        shortLabel: '🫣 Тайно обоюдно',
         directed: false,
         dashed: true,
         promptDesc: (from, to) =>
@@ -163,6 +181,7 @@ const CRUSH_MUTUALITY = {
     },
     open_mutual: {
         label: '💞 Обоюдная симпатия (взаимный флирт)',
+        shortLabel: '💞 Взаимно',
         directed: false,
         dashed: false,
         promptDesc: (from, to) =>
@@ -207,7 +226,7 @@ const BUILTIN_STYLE_SLIDERS = [
         defaultVal: 65,
         promptRule: (v) =>
             v >= 75
-                ? 'RICH ATMOSPHERIC PROSE: mandatory vivid sensory descriptions of lighting, textures, sounds, smells, and body language in every paragraph.'
+                ? 'RICH ATMOSPHERIC PROSE: Mandatory vivid sensory descriptions of lighting, textures, sounds, smells, and body language in every paragraph.'
                 : v <= 30
                   ? 'CONCISE DIALOGUE-FOCUSED: Keep environmental descriptions minimal; focus tightly on dialogue and immediate physical action.'
                   : 'BALANCED DESCRIPTIVENESS: Mix dialogue and sensory details evenly.',
@@ -267,46 +286,183 @@ const GENRE_OPTIONS = [
     'Комедия / Ирония',
 ];
 
+// 16 Rich Decorative Themes
 const BUILTIN_THEMES = {
     moonlight: {
-        name: '🌙 Лунная полночь (Default)',
-        bgMain: '#0f1322',
-        bgCard: '#181e36',
-        bgInput: '#101528',
+        name: '🌙 Лунная полночь',
+        desc: 'Глубокий индиго и звёздное серебро',
+        bgMain: '#0e1222',
+        bgCard: '#171d36',
+        bgInput: '#0f1426',
         textMain: '#eef1ff',
         textMuted: '#9aa5ce',
         accent: '#7aa2f7',
         accent2: '#bb9af7',
     },
     crimsonvelvet: {
-        name: '🍷 Алый бархат (Dark Romance)',
-        bgMain: '#190b10',
-        bgCard: '#261119',
-        bgInput: '#14080c',
+        name: '🍷 Алый бархат',
+        desc: 'Готика, дарк-романс и тёмное вино',
+        bgMain: '#18090f',
+        bgCard: '#261019',
+        bgInput: '#12060b',
         textMain: '#ffeef2',
         textMuted: '#d49ba7',
-        accent: '#ff5c8a',
+        accent: '#ff4d7d',
         accent2: '#ff9ebb',
+    },
+    bloodmoon: {
+        name: '🩸 Кровавая луна',
+        desc: 'Чёрный обсидиан и багровое затмение',
+        bgMain: '#0d0608',
+        bgCard: '#1a0c10',
+        bgInput: '#090405',
+        textMain: '#ffd6dc',
+        textMuted: '#b87b84',
+        accent: '#e6193c',
+        accent2: '#ff6b4a',
+    },
+    royalvelvet: {
+        name: '👑 Королевский пурпур',
+        desc: 'Пурпурный бархат и имперское золото',
+        bgMain: '#150c24',
+        bgCard: '#221438',
+        bgInput: '#10081c',
+        textMain: '#f8f0ff',
+        textMuted: '#bba4d9',
+        accent: '#f5c242',
+        accent2: '#c77dff',
+    },
+    sakuradream: {
+        name: '🌸 Ночная сакура',
+        desc: 'Нежные лепестки в вечерних сумерках',
+        bgMain: '#1b111c',
+        bgCard: '#291a2b',
+        bgInput: '#140c15',
+        textMain: '#fff0f7',
+        textMuted: '#cfa8c0',
+        accent: '#ff85b3',
+        accent2: '#ffc2dc',
     },
     emeraldforest: {
         name: '🌲 Изумрудный лес',
-        bgMain: '#0b1914',
-        bgCard: '#122820',
-        bgInput: '#091410',
+        desc: 'Мистическая хвоя и светлячки',
+        bgMain: '#0a1813',
+        bgCard: '#11271f',
+        bgInput: '#07120e',
         textMain: '#eafff5',
         textMuted: '#8ec4ad',
-        accent: '#41c995',
+        accent: '#3dd69b',
         accent2: '#9ece6a',
     },
     cyberneon: {
-        name: '⚡ Кибер-неон',
-        bgMain: '#0b0716',
-        bgCard: '#160e2b',
-        bgInput: '#080510',
+        name: '⚡ Кибер-неон 2077',
+        desc: 'Ультрафиолет, циан и неоновая маджента',
+        bgMain: '#0a0614',
+        bgCard: '#150d2a',
+        bgInput: '#07040e',
         textMain: '#f5eaff',
         textMuted: '#a992d4',
         accent: '#00f0ff',
         accent2: '#ff007f',
+    },
+    goldendeco: {
+        name: '🥂 Золотой Ар-Деко',
+        desc: 'Нуар, шампанское и бронзовый блеск',
+        bgMain: '#12100d',
+        bgCard: '#1f1b15',
+        bgInput: '#0c0b08',
+        textMain: '#fdf7e7',
+        textMuted: '#bdae8f',
+        accent: '#e6b85c',
+        accent2: '#f5d78e',
+    },
+    abyssalocean: {
+        name: '🌊 Бездна океана',
+        desc: 'Биолюминесценция на дне морском',
+        bgMain: '#06131c',
+        bgCard: '#0c2130',
+        bgInput: '#040d14',
+        textMain: '#e6f9ff',
+        textMuted: '#7fb3c8',
+        accent: '#00d4ff',
+        accent2: '#38f8b2',
+    },
+    amethystmist: {
+        name: '🔮 Аметистовый туман',
+        desc: 'Магический фиолет и лавандовое свечение',
+        bgMain: '#130f24',
+        bgCard: '#1e1838',
+        bgInput: '#0d0a1a',
+        textMain: '#f3edff',
+        textMuted: '#a99bc9',
+        accent: '#b57cff',
+        accent2: '#7dcfff',
+    },
+    coffeehouse: {
+        name: '☕ Тёплый эспрессо',
+        desc: 'Уютная кофейня, карамель и корица',
+        bgMain: '#17110e',
+        bgCard: '#261c17',
+        bgInput: '#110c0a',
+        textMain: '#faeee7',
+        textMuted: '#bfa190',
+        accent: '#e09f67',
+        accent2: '#f5c396',
+    },
+    sunsetmirage: {
+        name: '🌅 Закатный мираж',
+        desc: 'Сумеречный персик, коралл и пурпур',
+        bgMain: '#1a0e17',
+        bgCard: '#2b1623',
+        bgInput: '#130910',
+        textMain: '#fff2eb',
+        textMuted: '#d4a3a8',
+        accent: '#ff7b54',
+        accent2: '#ffb26b',
+    },
+    nordicfrost: {
+        name: '❄️ Северное сияние',
+        desc: 'Арктический лёд и полярная аврора',
+        bgMain: '#0d151f',
+        bgCard: '#162333',
+        bgInput: '#090f17',
+        textMain: '#ecf6ff',
+        textMuted: '#8fb1cc',
+        accent: '#70e1ff',
+        accent2: '#88f7c4',
+    },
+    witchapothecary: {
+        name: '🧪 Ведьмин гербарий',
+        desc: 'Тёмный мох, полынь и янтарные зелья',
+        bgMain: '#111610',
+        bgCard: '#1b2419',
+        bgInput: '#0c100b',
+        textMain: '#eef5e9',
+        textMuted: '#9eb396',
+        accent: '#b5e550',
+        accent2: '#e8a855',
+    },
+    matrixcode: {
+        name: '💻 Терминал Матрицы',
+        desc: 'Чёрный экран и фосфорный зелёный код',
+        bgMain: '#050c07',
+        bgCard: '#0b1910',
+        bgInput: '#030804',
+        textMain: '#d8ffe2',
+        textMuted: '#68a878',
+        accent: '#00ff66',
+        accent2: '#70ffaa',
+    },
+    celestialivory: {
+        name: '🕊️ Небесный фарфор (Светлая)',
+        desc: 'Жемчужный день и королевский сапфир',
+        bgMain: '#f2f4fa',
+        bgCard: '#ffffff',
+        bgInput: '#e6eaf5',
+        textMain: '#1a2138',
+        textMuted: '#5b668a',
+        accent: '#4169e1',
+        accent2: '#8a4fff',
     },
 };
 
@@ -314,7 +470,7 @@ const DEFAULT_SETTINGS = {
     masterEnabled: true,
     relEnabled: true,
     relAutoAnalyze: true,
-    isolatePerChat: false, // Default false so branches and new chats of the same bot keep all NPCs & ties!
+    isolatePerChat: false,
     styleEnabled: true,
     connectionProfileId: '',
     injectionDepth: 1,
@@ -358,11 +514,25 @@ const graphState = {
     zoom: 1,
     panX: 0,
     panY: 0,
+    logicalWidth: 360,
+    logicalHeight: 430,
     draggingNodeId: null,
     isPanning: false,
     lastPointerX: 0,
     lastPointerY: 0,
 };
+
+/**
+ * Convert HEX color to rgba(r,g,b,a)
+ */
+function hexToRgba(hex, alpha = 0.25) {
+    const clean = String(hex || '#7aa2f7').replace('#', '');
+    if (clean.length !== 6) return `rgba(122, 162, 247, ${alpha})`;
+    const r = parseInt(clean.slice(0, 2), 16) || 122;
+    const g = parseInt(clean.slice(2, 4), 16) || 162;
+    const b = parseInt(clean.slice(4, 6), 16) || 247;
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
 
 /**
  * Return settings with safe migration
@@ -393,9 +563,6 @@ function saveSettings() {
     updatePromptInjections();
 }
 
-/**
- * Character base key (independent of chat branch)
- */
 function getBaseCharacterKey() {
     const ctx = SillyTavern.getContext();
     if (ctx.groupId) {
@@ -408,9 +575,6 @@ function getBaseCharacterKey() {
     return 'global_fallback';
 }
 
-/**
- * Storage key for current character/chat
- */
 function getActiveScopeKey() {
     const ctx = SillyTavern.getContext();
     const s = getSettings();
@@ -441,7 +605,6 @@ function getCurrentNamesAndAvatars() {
  * Find any existing non-empty branch data for this character to prevent data loss on branch switch
  */
 function findBestDonorProfileForBaseKey(s, baseKey) {
-    // 1. Check direct baseKey first if it already has custom NPCs or modified relationships
     const prefix = `${baseKey}__chat_`;
     let bestDonor = null;
     let bestScore = -1;
@@ -449,7 +612,6 @@ function findBestDonorProfileForBaseKey(s, baseKey) {
     for (const [k, prof] of Object.entries(s.characterData || {})) {
         if (k === baseKey || k.startsWith(prefix)) {
             if (!prof || !Array.isArray(prof.nodes) || !Array.isArray(prof.relationships)) continue;
-            // Calculate richness score (number of NPCs + memories + non-default relationships)
             const npcCount = prof.nodes.filter((n) => n.type === 'npc').length;
             const relCount = prof.relationships.length;
             const memCount = prof.relationships.reduce((acc, r) => acc + (r.memories?.length || 0), 0);
@@ -466,8 +628,7 @@ function findBestDonorProfileForBaseKey(s, baseKey) {
 }
 
 /**
- * Get or initialize multi-node relationship graph data for the active character.
- * Automatically inherits/migrates from previous chat branches so NPCs and links never vanish!
+ * Get or initialize multi-node relationship graph data for the active character
  */
 function getActiveCharProfile() {
     const s = getSettings();
@@ -476,15 +637,14 @@ function getActiveCharProfile() {
     const { botName, botAvatar, personaName } = getCurrentNamesAndAvatars();
 
     if (!s.characterData[key]) {
-        // Check if we can inherit from baseKey or another branch of the same character
         const donor = findBestDonorProfileForBaseKey(s, baseKey);
         if (donor) {
             s.characterData[key] = structuredClone(donor);
         } else {
             s.characterData[key] = {
                 nodes: [
-                    { id: 'node_bot', name: botName, type: 'bot', avatar: botAvatar, x: 170, y: 190 },
-                    { id: 'node_persona', name: personaName, type: 'persona', avatar: '', x: 420, y: 190 },
+                    { id: 'node_bot', name: botName, type: 'bot', avatar: botAvatar, x: 115, y: 200 },
+                    { id: 'node_persona', name: personaName, type: 'persona', avatar: '', x: 255, y: 200 },
                 ],
                 relationships: [
                     {
@@ -502,7 +662,6 @@ function getActiveCharProfile() {
             };
         }
     } else {
-        // If current profile is completely default (0 NPCs, strangers 0%), check if user created NPCs in a branch earlier
         const cur = s.characterData[key];
         const isStillBlank =
             Array.isArray(cur.nodes) &&
@@ -523,15 +682,13 @@ function getActiveCharProfile() {
 
     const prof = s.characterData[key];
 
-    // Migrate old v2.0 single-relationship format if needed
     if (!Array.isArray(prof.nodes)) {
         prof.nodes = [
-            { id: 'node_bot', name: botName, type: 'bot', avatar: botAvatar, x: 170, y: 190 },
-            { id: 'node_persona', name: personaName, type: 'persona', avatar: '', x: 420, y: 190 },
+            { id: 'node_bot', name: botName, type: 'bot', avatar: botAvatar, x: 115, y: 200 },
+            { id: 'node_persona', name: personaName, type: 'persona', avatar: '', x: 255, y: 200 },
         ];
     }
 
-    // Keep main bot and persona node names synced
     const botNode = prof.nodes.find((n) => n.id === 'node_bot');
     if (botNode) {
         botNode.name = botName;
@@ -588,9 +745,6 @@ function getNodeById(prof, nodeId) {
     return prof.nodes.find((n) => n.id === nodeId) || { id: nodeId, name: 'Неизвестный', type: 'npc', avatar: '' };
 }
 
-/**
- * Describe bipolar percentage (-100%..+100%) in clear English for the LLM
- */
 function describeAffinityLevel(val) {
     if (val <= -75) return `${val}% (BITTER HATRED / DEEP HOSTILITY — active antagonism, distrust, cold or aggressive behavior)`;
     if (val <= -40) return `${val}% (STRONG DISLIKE / RESENTMENT — unresolved conflict, irritation, sharp friction)`;
@@ -601,9 +755,6 @@ function describeAffinityLevel(val) {
     return `${val}% (DEVOTED LOVE / UNBREAKABLE BOND — maximum intimacy, loyalty, and deep emotional resonance)`;
 }
 
-/**
- * Describe slider intensity (0..100%) as an explicit enforcement tier
- */
 function getSliderForceLabel(val) {
     if (val <= 10) return 'STRICTLY FORBIDDEN / 0% PRESENCE';
     if (val <= 30) return 'LOW / MINIMAL';
@@ -613,7 +764,7 @@ function getSliderForceLabel(val) {
 }
 
 /**
- * Build English prompt block for all relationships & NPCs in the active character's network
+ * Build English prompt block for all relationships & NPCs
  */
 function buildRelationshipPromptText() {
     const s = getSettings();
@@ -712,9 +863,6 @@ function buildStylePromptText() {
     return lines.join('\n');
 }
 
-/**
- * Push prompts into SillyTavern prompt manager
- */
 function updatePromptInjections() {
     const ctx = SillyTavern.getContext();
     if (typeof ctx.setExtensionPrompt !== 'function') return;
@@ -724,7 +872,6 @@ function updatePromptInjections() {
     const relText = buildRelationshipPromptText();
     const styleText = buildStylePromptText();
 
-    // extension_prompt_types.IN_CHAT = 1, extension_prompt_roles.SYSTEM = 0
     ctx.setExtensionPrompt(PROMPT_KEY_REL, relText, 1, depth, false, 0);
     ctx.setExtensionPrompt(PROMPT_KEY_STYLE, styleText, 1, depth, false, 0);
 
@@ -735,12 +882,7 @@ function updatePromptInjections() {
     }
 }
 
-/**
- * Official SillyTavern Generate Interceptor (registered in manifest.json)
- * Guarantees that even if a preset or chat completion format skips extension prompts,
- * BlueMoon's relationship & style rules are always enforced.
- */
-window.bluemoonGenerateInterceptor = async function (chat, contextSize, abort, type) {
+window.bluemoonGenerateInterceptor = async function () {
     try {
         updatePromptInjections();
     } catch (err) {
@@ -749,7 +891,7 @@ window.bluemoonGenerateInterceptor = async function (chat, contextSize, abort, t
 };
 
 /**
- * Apply CSS Custom Properties for the active theme
+ * Apply CSS Custom Properties for the active theme (including glow & canvas background)
  */
 function applyThemeVariables() {
     const s = getSettings();
@@ -766,11 +908,12 @@ function applyThemeVariables() {
     root.style.setProperty('--bm2-text-muted', t.textMuted);
     root.style.setProperty('--bm2-accent', t.accent);
     root.style.setProperty('--bm2-accent-2', t.accent2);
+    root.style.setProperty('--bm2-border', hexToRgba(t.accent, 0.34));
+    root.style.setProperty('--bm2-glow', hexToRgba(t.accent, 0.2));
+    root.style.setProperty('--bm2-canvas-bg-1', t.bgCard);
+    root.style.setProperty('--bm2-canvas-bg-2', t.bgMain);
 }
 
-/**
- * Send LLM request using ConnectionManagerRequestService or generateRaw
- */
 async function runAuxiliaryLLMPrompt(systemPrompt, userPrompt, maxTokens = 950) {
     const ctx = SillyTavern.getContext();
     const s = getSettings();
@@ -829,7 +972,6 @@ async function analyzeAllRelationshipsDelta() {
             .map((m) => `${m.name}: ${m.mes}`)
             .join('\n---\n');
 
-        // Build compact list of all tracked pairs for the analyzer
         const pairsSummary = prof.relationships.map((r) => {
             const fromNode = getNodeById(prof, r.fromId);
             const toNode = getNodeById(prof, r.toId);
@@ -939,7 +1081,7 @@ Only include pairs in "updates" that actually interacted or were emotionally aff
 }
 
 /**
- * Export current character's Nodes & Relationships to a downloadable JSON file
+ * Export current character's Nodes & Relationships to JSON
  */
 function exportRelationshipsToJson() {
     try {
@@ -947,7 +1089,7 @@ function exportRelationshipsToJson() {
         const { botName } = getCurrentNamesAndAvatars();
         const safeName = botName.replace(/[^a-zA-Zа-яА-Я0-9_-]/g, '_') || 'character';
         const payload = {
-            bluemoon_version: '2.3.0',
+            bluemoon_version: '2.4.0',
             exportedAt: new Date().toISOString(),
             characterName: botName,
             nodes: prof.nodes,
@@ -975,7 +1117,7 @@ function exportRelationshipsToJson() {
 }
 
 /**
- * Import Nodes & Relationships from a JSON file
+ * Import Nodes & Relationships from JSON
  */
 function importRelationshipsFromJson(file) {
     if (!file) return;
@@ -1002,7 +1144,6 @@ function importRelationshipsFromJson(file) {
                 prof.relationships = data.relationships;
                 prof.activeRelId = data.activeRelId || prof.relationships[0]?.id || 'rel_default';
             } else {
-                // Merge nodes
                 for (const incomingNode of data.nodes) {
                     const existing = prof.nodes.find(
                         (n) => n.id === incomingNode.id || n.name.toLowerCase() === String(incomingNode.name).toLowerCase()
@@ -1013,7 +1154,6 @@ function importRelationshipsFromJson(file) {
                         existing.avatar = incomingNode.avatar;
                     }
                 }
-                // Merge relationships
                 for (const incomingRel of data.relationships) {
                     const existingRel = prof.relationships.find(
                         (r) =>
@@ -1041,10 +1181,9 @@ function importRelationshipsFromJson(file) {
                 }
             }
 
-            // Ensure node_bot and node_persona exist and match current character
             let botNode = prof.nodes.find((n) => n.id === 'node_bot' || n.type === 'bot');
             if (!botNode) {
-                prof.nodes.unshift({ id: 'node_bot', name: botName, type: 'bot', avatar: botAvatar, x: 170, y: 190 });
+                prof.nodes.unshift({ id: 'node_bot', name: botName, type: 'bot', avatar: botAvatar, x: 120, y: 200 });
             } else {
                 botNode.id = 'node_bot';
                 botNode.name = botName;
@@ -1053,13 +1192,12 @@ function importRelationshipsFromJson(file) {
 
             let personaNode = prof.nodes.find((n) => n.id === 'node_persona' || n.type === 'persona');
             if (!personaNode) {
-                prof.nodes.splice(1, 0, { id: 'node_persona', name: personaName, type: 'persona', avatar: '', x: 420, y: 190 });
+                prof.nodes.splice(1, 0, { id: 'node_persona', name: personaName, type: 'persona', avatar: '', x: 250, y: 200 });
             } else {
                 personaNode.id = 'node_persona';
                 personaNode.name = personaName;
             }
 
-            // Also sync to base character key so all branches see it
             const s = getSettings();
             const baseKey = getBaseCharacterKey();
             s.characterData[baseKey] = structuredClone(prof);
@@ -1080,6 +1218,36 @@ function importRelationshipsFromJson(file) {
         }
     };
     reader.readAsText(file);
+}
+
+/**
+ * Evenly distribute all nodes in a spacious constellation circle so labels don't overlap
+ */
+function autoArrangeNodesInCircle() {
+    const prof = getActiveCharProfile();
+    const count = prof.nodes.length;
+    if (count === 0) return;
+
+    const w = graphState.logicalWidth || 350;
+    const h = graphState.logicalHeight || 430;
+    const cx = Math.round(w / 2);
+    const cy = Math.round(h / 2);
+
+    // Choose a spacious radius so edges and badges have breathing room
+    const radius = Math.max(125, Math.min(w, h) * 0.38 + (count > 5 ? (count - 5) * 18 : 0));
+
+    prof.nodes.forEach((node, idx) => {
+        const angle = (idx / count) * Math.PI * 2 - Math.PI / 2;
+        node.x = Math.round(cx + Math.cos(angle) * radius);
+        node.y = Math.round(cy + Math.sin(angle) * radius);
+    });
+
+    graphState.zoom = count > 6 ? 0.82 : 1;
+    graphState.panX = Math.round((w - w * graphState.zoom) / 2);
+    graphState.panY = Math.round((h - h * graphState.zoom) / 2);
+
+    saveSettings();
+    drawRelationshipGraph();
 }
 
 /**
@@ -1135,9 +1303,6 @@ Return ONLY valid JSON (no markdown) in this exact format:
         if (!match) throw new Error('JSON не найден в ответе ИИ');
 
         const data = JSON.parse(match[0]);
-        const canvas = document.getElementById('bm2_graph_canvas');
-        const cw = canvas ? canvas.width : 580;
-        const ch = canvas ? canvas.height : 400;
 
         if (Array.isArray(data.npcs)) {
             for (const npcRaw of data.npcs) {
@@ -1145,14 +1310,13 @@ Return ONLY valid JSON (no markdown) in this exact format:
                 if (!name) continue;
                 const exists = prof.nodes.some((n) => n.name.toLowerCase() === name.toLowerCase());
                 if (!exists) {
-                    const angle = Math.random() * Math.PI * 2;
                     prof.nodes.push({
                         id: 'npc_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
                         name,
                         type: 'npc',
                         avatar: '',
-                        x: Math.round(cw / 2 + Math.cos(angle) * 130),
-                        y: Math.round(ch / 2 + Math.sin(angle) * 120),
+                        x: 180,
+                        y: 180,
                     });
                 }
             }
@@ -1207,11 +1371,10 @@ Return ONLY valid JSON (no markdown) in this exact format:
             }
         }
 
-        saveSettings();
+        autoArrangeNodesInCircle();
         renderRelationshipsPane();
-        drawRelationshipGraph();
         if (window.toastr) {
-            window.toastr.success('Древо связей успешно обновлено!', '🌙 BlueMoon');
+            window.toastr.success('Древо связей успешно построено и распределено!', '🌙 BlueMoon');
         }
     } catch (err) {
         console.error(`[${MODULE_NAME}] Auto graph build failed:`, err);
@@ -1221,9 +1384,6 @@ Return ONLY valid JSON (no markdown) in this exact format:
     }
 }
 
-/**
- * Compress uploaded image from phone gallery to 160x160 JPEG DataURL
- */
 function readAndCompressImage(file, maxSize = 160) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -1238,7 +1398,7 @@ function readAndCompressImage(file, maxSize = 160) {
                 const sx = (img.width - minSide) / 2;
                 const sy = (img.height - minSide) / 2;
                 ctx.drawImage(img, sx, sy, minSide, minSide, 0, 0, maxSize, maxSize);
-                resolve(canvas.toDataURL('image/jpeg', 0.82));
+                resolve(canvas.toDataURL('image/jpeg', 0.84));
             };
             img.onerror = reject;
             img.src = e.target.result;
@@ -1265,7 +1425,6 @@ function buildModalUI() {
         wandMenu.appendChild(item);
     }
 
-    // Hidden file inputs for Avatar upload and JSON Import
     if (!document.getElementById('bm2_hidden_avatar_input')) {
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
@@ -1295,13 +1454,13 @@ function buildModalUI() {
         <div id="bm2_modal" role="dialog" aria-modal="true">
             <div class="bm2_header">
                 <div class="bm2_title_wrap">
-                    <span>🌙</span>
-                    <h3>BlueMoon v2.3</h3>
+                    <span class="bm2_moon_icon">🌙</span>
+                    <h3>BlueMoon</h3>
                     <span id="bm2_active_char_badge" class="bm2_badge_char">Персонаж</span>
                 </div>
                 <div class="bm2_header_actions">
-                    <button type="button" id="bm2_quick_prompt_btn" class="bm2_btn" style="min-height:36px;padding:4px 10px;" title="Посмотреть, что именно передаётся ИИ">
-                        👁️ Промпт ИИ
+                    <button type="button" id="bm2_quick_prompt_btn" class="bm2_prompt_top_btn" title="Посмотреть, что именно передаётся ИИ">
+                        👁️ Промпт
                     </button>
                     <button type="button" class="bm2_close_btn" id="bm2_close_modal_btn" title="Закрыть окно">
                         ✕ Закрыть
@@ -1324,31 +1483,34 @@ function buildModalUI() {
                 <div class="bm2_pane" id="bm2_pane_graph">
                     <div class="bm2_card">
                         <div class="bm2_card_header">
-                            <h4 class="bm2_card_title">🕸️ Интерактивное Древо Связей</h4>
-                            <div class="bm2_btn_row">
-                                <button type="button" class="bm2_btn bm2_btn_primary" id="bm2_ai_build_graph_btn" style="min-height:34px;padding:4px 10px;">
-                                    ✨ Построить древо ИИ
+                            <h4 class="bm2_card_title">🕸️ Созвездие Связей (Obsidian Graph)</h4>
+                            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                                <button type="button" class="bm2_btn" id="bm2_arrange_graph_btn" style="flex:0 0 auto;min-height:32px;padding:4px 9px;" title="Аккуратно раздвинуть все круги по созвездию">
+                                    🫧 Распределить
+                                </button>
+                                <button type="button" class="bm2_btn bm2_btn_primary" id="bm2_ai_build_graph_btn" style="flex:0 0 auto;min-height:32px;padding:4px 10px;">
+                                    ✨ Построить ИИ
                                 </button>
                             </div>
                         </div>
                         <p class="bm2_settings_hint" style="margin:0;">
-                            Перетаскивайте круги персонажей пальцем или мышью. Нажмите на узел или линию, чтобы открыть их связь. Фотографии отображаются внутри круга, а имя — под ним.
+                            Перетаскивайте круги пальцем. Нажмите «🫧 Распределить», чтобы красиво раздвинуть персонажей по кругу.
                         </p>
-                        <div class="bm2_graph_container">
-                            <canvas id="bm2_graph_canvas" width="620" height="410"></canvas>
+                        <div class="bm2_graph_container" id="bm2_graph_wrap">
+                            <canvas id="bm2_graph_canvas"></canvas>
                             <div class="bm2_graph_toolbar">
                                 <button type="button" class="bm2_graph_tool_btn" id="bm2_zoom_in_btn" title="Приблизить">＋</button>
                                 <button type="button" class="bm2_graph_tool_btn" id="bm2_zoom_out_btn" title="Отдалить">－</button>
-                                <button type="button" class="bm2_graph_tool_btn" id="bm2_zoom_reset_btn" title="Сбросить вид">⟲</button>
+                                <button type="button" class="bm2_graph_tool_btn" id="bm2_zoom_reset_btn" title="Центрировать">⟲</button>
                             </div>
                         </div>
                         <div class="bm2_graph_legend">
-                            <span class="bm2_legend_item"><i class="bm2_legend_dot" style="background:#ff9e64"></i> Влюблённость 💘</span>
-                            <span class="bm2_legend_item"><i class="bm2_legend_dot" style="background:#ff7eb6"></i> Пара / Любовь</span>
-                            <span class="bm2_legend_item"><i class="bm2_legend_dot" style="background:#ffd700"></i> Брак</span>
-                            <span class="bm2_legend_item"><i class="bm2_legend_dot" style="background:#7aa2f7"></i> Дружба</span>
-                            <span class="bm2_legend_item"><i class="bm2_legend_dot" style="background:#9ece6a"></i> Семья / Дети</span>
-                            <span class="bm2_legend_item"><i class="bm2_legend_dot" style="background:#f7768e"></i> Вражда (-%)</span>
+                            <span class="bm2_legend_item"><i class="bm2_legend_dot" style="background:#ff9e64;color:#ff9e64"></i> Влюблённость 💘</span>
+                            <span class="bm2_legend_item"><i class="bm2_legend_dot" style="background:#ff7eb6;color:#ff7eb6"></i> Пара / Любовь</span>
+                            <span class="bm2_legend_item"><i class="bm2_legend_dot" style="background:#ffd700;color:#ffd700"></i> Брак</span>
+                            <span class="bm2_legend_item"><i class="bm2_legend_dot" style="background:#7aa2f7;color:#7aa2f7"></i> Дружба</span>
+                            <span class="bm2_legend_item"><i class="bm2_legend_dot" style="background:#9ece6a;color:#9ece6a"></i> Семья / Дети</span>
+                            <span class="bm2_legend_item"><i class="bm2_legend_dot" style="background:#f7768e;color:#f7768e"></i> Вражда (-%)</span>
                         </div>
                     </div>
                 </div>
@@ -1368,7 +1530,6 @@ function buildModalUI() {
         if (e.target === overlay) closeModal();
     });
 
-    // Quick jump to AI Prompt preview
     document.getElementById('bm2_quick_prompt_btn').addEventListener('click', () => {
         switchTab('theme');
         setTimeout(() => {
@@ -1393,7 +1554,10 @@ function switchTab(tabId) {
         p.classList.toggle('bm2_active', p.id === `bm2_pane_${tabId}`);
     });
     if (tabId === 'graph') {
-        setTimeout(() => drawRelationshipGraph(), 30);
+        setTimeout(() => {
+            syncCanvasResolution();
+            drawRelationshipGraph();
+        }, 30);
     }
     if (tabId === 'theme') {
         updatePromptInjections();
@@ -1405,6 +1569,10 @@ function openModal() {
     applyThemeVariables();
     renderAllPanes();
     document.getElementById('bm2_overlay').classList.add('bm2_open');
+    setTimeout(() => {
+        syncCanvasResolution();
+        drawRelationshipGraph();
+    }, 50);
 }
 
 function closeModal() {
@@ -1434,7 +1602,6 @@ function renderRelationshipsPane() {
     const rel = getActiveRelationship();
     const roleMeta = RELATIONSHIP_ROLES[rel.role] || RELATIONSHIP_ROLES.strangers;
 
-    // 1. Participants Strip HTML
     const nodesHtml = prof.nodes
         .map((n) => {
             const roleTag = n.type === 'bot' ? 'Бот' : n.type === 'persona' ? 'Персона' : 'NPC';
@@ -1462,7 +1629,6 @@ function renderRelationshipsPane() {
         })
         .join('');
 
-    // 2. Relationship Selector Options
     const relOptionsHtml = prof.relationships
         .map((r) => {
             const fn = getNodeById(prof, r.fromId);
@@ -1487,7 +1653,6 @@ function renderRelationshipsPane() {
         .map(([k, v]) => `<option value="${k}" ${rel.role === k ? 'selected' : ''}>${v.label}</option>`)
         .join('');
 
-    // Crush Mutuality Sub-Selector (5 options including Secret One-Sided)
     const crushMutualityHtml =
         rel.role === 'crush'
             ? `
@@ -1521,7 +1686,7 @@ function renderRelationshipsPane() {
 
     const memoriesHtml =
         rel.memories.length === 0
-            ? `<div class="bm2_settings_hint">Пока нет сохранённых моментов для этой пары. Добавьте вручную или нажмите «Оценить сцену ИИ».</div>`
+            ? `<div class="bm2_settings_hint">Пока нет сохранённых моментов для этой пары. Добавьте вручную или нажмите «Сканировать все связи ИИ».</div>`
             : rel.memories
                   .map(
                       (m) => `
@@ -1535,7 +1700,6 @@ function renderRelationshipsPane() {
                   )
                   .join('');
 
-    // Bipolar fill calculation (-100%..0..+100%)
     const sat = rel.satisfaction;
     const posWidth = sat > 0 ? `${sat / 2}%` : '0%';
     const negWidth = sat < 0 ? `${Math.abs(sat) / 2}%` : '0%';
@@ -1547,20 +1711,20 @@ function renderRelationshipsPane() {
         <div class="bm2_card">
             <div class="bm2_card_header">
                 <h4 class="bm2_card_title">👥 Участники и NPC (${prof.nodes.length})</h4>
-                <div style="display:flex;gap:6px;flex-wrap:wrap;">
-                    <button type="button" class="bm2_btn" id="bm2_export_json_btn" style="flex:0 0 auto;min-height:34px;padding:4px 10px;" title="Скачать все связи и NPC этого персонажа в файл JSON">
-                        📥 Экспорт JSON
+                <div style="display:flex;gap:5px;flex-wrap:wrap;">
+                    <button type="button" class="bm2_btn" id="bm2_export_json_btn" style="flex:0 0 auto;min-height:32px;padding:4px 9px;" title="Скачать все связи и NPC этого персонажа в файл JSON">
+                        📥 Экспорт
                     </button>
-                    <button type="button" class="bm2_btn" id="bm2_import_json_btn" style="flex:0 0 auto;min-height:34px;padding:4px 10px;" title="Загрузить связи и NPC из файла JSON">
-                        📤 Импорт JSON
+                    <button type="button" class="bm2_btn" id="bm2_import_json_btn" style="flex:0 0 auto;min-height:32px;padding:4px 9px;" title="Загрузить связи и NPC из файла JSON">
+                        📤 Импорт
                     </button>
-                    <button type="button" class="bm2_btn bm2_btn_primary" id="bm2_add_npc_btn" style="flex:0 0 auto;min-height:34px;padding:4px 10px;">
-                        + Добавить NPC
+                    <button type="button" class="bm2_btn bm2_btn_primary" id="bm2_add_npc_btn" style="flex:0 0 auto;min-height:32px;padding:4px 10px;">
+                        + NPC
                     </button>
                 </div>
             </div>
             <div class="bm2_nodes_strip">${nodesHtml}</div>
-            <span class="bm2_slider_hint">Нажмите 📷 для загрузки фото с телефона или 🔗 для URL. Кнопки Экспорт/Импорт сохраняют всех NPC и связи в файл.</span>
+            <span class="bm2_slider_hint">Нажмите 📷 для загрузки фото с телефона или 🔗 для URL.</span>
         </div>
 
         <!-- CARD 2: ACTIVE RELATIONSHIP PAIR -->
@@ -1568,10 +1732,10 @@ function renderRelationshipsPane() {
             <div class="bm2_card_header">
                 <h4 class="bm2_card_title">🔗 Связи между персонажами (${prof.relationships.length})</h4>
                 <div style="display:flex;gap:6px;">
-                    <button type="button" class="bm2_btn bm2_btn_primary" id="bm2_add_rel_btn" style="min-height:34px;padding:4px 10px;">+ Новая связь</button>
+                    <button type="button" class="bm2_btn bm2_btn_primary" id="bm2_add_rel_btn" style="min-height:32px;padding:4px 10px;">+ Новая связь</button>
                     ${
                         prof.relationships.length > 1
-                            ? `<button type="button" class="bm2_btn bm2_btn_danger" id="bm2_del_rel_btn" style="min-height:34px;padding:4px 10px;">🗑️</button>`
+                            ? `<button type="button" class="bm2_btn bm2_btn_danger" id="bm2_del_rel_btn" style="min-height:32px;padding:4px 10px;">🗑️</button>`
                             : ''
                     }
                 </div>
@@ -1611,10 +1775,10 @@ function renderRelationshipsPane() {
                     <div class="bm2_meter_fill_pos" id="bm2_sat_fill_pos" style="width: ${posWidth};"></div>
                 </div>
                 <div class="bm2_meter_controls">
-                    <button type="button" class="bm2_btn" id="bm2_sat_minus" style="flex:0 0 46px;">-5%</button>
+                    <button type="button" class="bm2_btn" id="bm2_sat_minus" style="flex:0 0 44px;">-5%</button>
                     <input type="range" id="bm2_sat_range" class="bm2_range" min="-100" max="100" step="1" value="${sat}" />
-                    <button type="button" class="bm2_btn" id="bm2_sat_zero" style="flex:0 0 42px;" title="Сбросить в 0%">0%</button>
-                    <button type="button" class="bm2_btn" id="bm2_sat_plus" style="flex:0 0 46px;">+5%</button>
+                    <button type="button" class="bm2_btn" id="bm2_sat_zero" style="flex:0 0 40px;" title="Сбросить в 0%">0%</button>
+                    <button type="button" class="bm2_btn" id="bm2_sat_plus" style="flex:0 0 44px;">+5%</button>
                 </div>
             </div>
         </div>
@@ -1631,7 +1795,7 @@ function renderRelationshipsPane() {
         <div class="bm2_card">
             <div class="bm2_card_header">
                 <h4 class="bm2_card_title">🧠 Ключевые события этой пары</h4>
-                <button type="button" class="bm2_btn bm2_btn_primary" id="bm2_analyze_now_btn" style="flex:0 0 auto;min-height:34px;padding:4px 10px;">
+                <button type="button" class="bm2_btn bm2_btn_primary" id="bm2_analyze_now_btn" style="flex:0 0 auto;min-height:32px;padding:4px 10px;">
                     ✨ Сканировать все связи ИИ
                 </button>
             </div>
@@ -1646,23 +1810,24 @@ function renderRelationshipsPane() {
         </div>
     `;
 
-    // Bind Export / Import JSON buttons
     pane.querySelector('#bm2_export_json_btn')?.addEventListener('click', exportRelationshipsToJson);
     pane.querySelector('#bm2_import_json_btn')?.addEventListener('click', () => {
         document.getElementById('bm2_hidden_json_input')?.click();
     });
 
-    // Bind Add NPC
     pane.querySelector('#bm2_add_npc_btn').addEventListener('click', () => {
         const name = prompt('Введите имя нового персонажа / NPC:');
         if (!name || !name.trim()) return;
+        const w = graphState.logicalWidth || 340;
+        const h = graphState.logicalHeight || 420;
+        const angle = Math.random() * Math.PI * 2;
         const newNode = {
             id: 'npc_' + Date.now(),
             name: name.trim(),
             type: 'npc',
             avatar: '',
-            x: 200 + Math.floor(Math.random() * 180),
-            y: 120 + Math.floor(Math.random() * 160),
+            x: Math.round(w / 2 + Math.cos(angle) * 110),
+            y: Math.round(h / 2 + Math.sin(angle) * 110),
         };
         prof.nodes.push(newNode);
         saveSettings();
@@ -1670,7 +1835,6 @@ function renderRelationshipsPane() {
         drawRelationshipGraph();
     });
 
-    // Bind Upload Avatar from Gallery (📷)
     pane.querySelectorAll('.bm2_upload_avatar_btn').forEach((btn) => {
         btn.addEventListener('click', () => {
             const node = getNodeById(prof, btn.dataset.id);
@@ -1698,7 +1862,6 @@ function renderRelationshipsPane() {
         });
     });
 
-    // Bind Avatar URL (🔗)
     pane.querySelectorAll('.bm2_url_avatar_btn').forEach((btn) => {
         btn.addEventListener('click', () => {
             const node = getNodeById(prof, btn.dataset.id);
@@ -1714,7 +1877,6 @@ function renderRelationshipsPane() {
         });
     });
 
-    // Bind Delete NPC
     pane.querySelectorAll('.bm2_del_node_btn').forEach((btn) => {
         btn.addEventListener('click', () => {
             const nodeId = btn.dataset.id;
@@ -1741,7 +1903,6 @@ function renderRelationshipsPane() {
         });
     });
 
-    // Bind Relationship Selector & Pair Creation
     pane.querySelector('#bm2_rel_selector').addEventListener('change', (e) => {
         prof.activeRelId = e.target.value;
         saveSettings();
@@ -1811,7 +1972,6 @@ function renderRelationshipsPane() {
         });
     }
 
-    // Bipolar Satisfaction Slider (-100%..+100%)
     const updateSat = (val) => {
         rel.satisfaction = Math.max(-100, Math.min(100, Number(val) || 0));
         const lbl = document.getElementById('bm2_sat_label');
@@ -1874,18 +2034,48 @@ function renderRelationshipsPane() {
 }
 
 /**
+ * Match Canvas internal buffer 1:1 with its CSS container size & DevicePixelRatio
+ * Fixes squished/oval nodes on vertical phone screens!
+ */
+function syncCanvasResolution() {
+    const canvas = document.getElementById('bm2_graph_canvas');
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width < 20 || rect.height < 20) return;
+
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const targetW = Math.round(rect.width * dpr);
+    const targetH = Math.round(rect.height * dpr);
+
+    graphState.logicalWidth = rect.width;
+    graphState.logicalHeight = rect.height;
+
+    if (canvas.width !== targetW || canvas.height !== targetH) {
+        canvas.width = targetW;
+        canvas.height = targetH;
+    }
+}
+
+/**
  * Obsidian-Style Interactive Graph Renderer & Touch/Mouse Physics
  */
 function initGraphCanvasInteractions() {
     const canvas = document.getElementById('bm2_graph_canvas');
     if (!canvas) return;
 
+    // Watch container resizing so phone rotation or tab switch never squishes the canvas
+    if (window.ResizeObserver) {
+        const ro = new ResizeObserver(() => {
+            syncCanvasResolution();
+            drawRelationshipGraph();
+        });
+        ro.observe(canvas);
+    }
+
     const getCanvasPos = (clientX, clientY) => {
         const rect = canvas.getBoundingClientRect();
-        const scaleX = canvas.width / rect.width;
-        const scaleY = canvas.height / rect.height;
-        const rawX = (clientX - rect.left) * scaleX;
-        const rawY = (clientY - rect.top) * scaleY;
+        const rawX = clientX - rect.left;
+        const rawY = clientY - rect.top;
         return {
             x: (rawX - graphState.panX) / graphState.zoom,
             y: (rawY - graphState.panY) / graphState.zoom,
@@ -1898,14 +2088,15 @@ function initGraphCanvasInteractions() {
         const prof = getActiveCharProfile();
         for (let i = prof.nodes.length - 1; i >= 0; i--) {
             const n = prof.nodes[i];
-            const dx = x - (n.x || 200);
-            const dy = y - (n.y || 200);
+            const dx = x - (n.x || 180);
+            const dy = y - (n.y || 180);
             if (Math.hypot(dx, dy) <= 32) return n;
         }
         return null;
     };
 
     const onPointerDown = (clientX, clientY) => {
+        syncCanvasResolution();
         const pos = getCanvasPos(clientX, clientY);
         const hitNode = findNodeAt(pos.x, pos.y);
         if (hitNode) {
@@ -1979,11 +2170,11 @@ function initGraphCanvasInteractions() {
     canvas.addEventListener('touchend', onPointerUp);
 
     document.getElementById('bm2_zoom_in_btn')?.addEventListener('click', () => {
-        graphState.zoom = Math.min(2.2, graphState.zoom + 0.2);
+        graphState.zoom = Math.min(2.2, graphState.zoom + 0.18);
         drawRelationshipGraph();
     });
     document.getElementById('bm2_zoom_out_btn')?.addEventListener('click', () => {
-        graphState.zoom = Math.max(0.45, graphState.zoom - 0.2);
+        graphState.zoom = Math.max(0.4, graphState.zoom - 0.18);
         drawRelationshipGraph();
     });
     document.getElementById('bm2_zoom_reset_btn')?.addEventListener('click', () => {
@@ -1992,48 +2183,56 @@ function initGraphCanvasInteractions() {
         graphState.panY = 0;
         drawRelationshipGraph();
     });
+    document.getElementById('bm2_arrange_graph_btn')?.addEventListener('click', autoArrangeNodesInCircle);
     document.getElementById('bm2_ai_build_graph_btn')?.addEventListener('click', autoBuildGraphWithAI);
 }
 
 /**
- * Draw Obsidian Graph on <canvas>
+ * Draw Obsidian Graph on <canvas> with True 1:1 Retina Scaling & Staggered Badges
  */
 function drawRelationshipGraph() {
     const canvas = document.getElementById('bm2_graph_canvas');
     if (!canvas) return;
+    syncCanvasResolution();
+
     const ctx = canvas.getContext('2d');
     const prof = getActiveCharProfile();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = graphState.logicalWidth || 350;
+    const h = graphState.logicalHeight || 430;
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.save();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+
     ctx.translate(graphState.panX, graphState.panY);
     ctx.scale(graphState.zoom, graphState.zoom);
 
-    // Subtle background grid
-    ctx.strokeStyle = 'rgba(122, 162, 247, 0.06)';
+    // Decorative constellation grid
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.045)';
     ctx.lineWidth = 1;
-    for (let gx = -400; gx < 1200; gx += 45) {
+    for (let gx = -600; gx < 1400; gx += 44) {
         ctx.beginPath();
-        ctx.moveTo(gx, -400);
-        ctx.lineTo(gx, 1000);
+        ctx.moveTo(gx, -600);
+        ctx.lineTo(gx, 1400);
         ctx.stroke();
     }
-    for (let gy = -400; gy < 1000; gy += 45) {
+    for (let gy = -600; gy < 1400; gy += 44) {
         ctx.beginPath();
-        ctx.moveTo(-400, gy);
-        ctx.lineTo(1200, gy);
+        ctx.moveTo(-600, gy);
+        ctx.lineTo(1400, gy);
         ctx.stroke();
     }
 
-    // 1. Draw Relationship Edges
-    for (const rel of prof.relationships) {
+    // 1. Draw Relationship Edges with staggered badge positions (0.42 / 0.58) so badges collide less
+    prof.relationships.forEach((rel, edgeIdx) => {
         const n1 = prof.nodes.find((n) => n.id === rel.fromId);
         const n2 = prof.nodes.find((n) => n.id === rel.toId);
-        if (!n1 || !n2) continue;
+        if (!n1 || !n2) return;
 
-        const x1 = n1.x || 160;
+        const x1 = n1.x || 130;
         const y1 = n1.y || 180;
-        const x2 = n2.x || 400;
+        const x2 = n2.x || 250;
         const y2 = n2.y || 180;
 
         const roleMeta = RELATIONSHIP_ROLES[rel.role] || RELATIONSHIP_ROLES.strangers;
@@ -2041,17 +2240,13 @@ function drawRelationshipGraph() {
 
         let isDirected = Boolean(roleMeta.directed);
         let isDashed = Boolean(roleMeta.dashed);
-        let badgeSubLabel = roleMeta.label;
+        let shortBadge = roleMeta.shortLabel || roleMeta.label;
 
         if (rel.role === 'crush') {
             const mut = CRUSH_MUTUALITY[rel.mutualStatus] || CRUSH_MUTUALITY.secret_one_sided;
             isDirected = mut.directed;
             isDashed = mut.dashed;
-            if (rel.mutualStatus === 'secret_one_sided') badgeSubLabel = '🤫 Тайно влюблён(а)';
-            else if (rel.mutualStatus === 'open_one_sided') badgeSubLabel = '💘 Влюблён(а)';
-            else if (rel.mutualStatus === 'unrequited') badgeSubLabel = '💔 Безответно';
-            else if (rel.mutualStatus === 'secret_mutual') badgeSubLabel = '🫣 Тайно обоюдно';
-            else if (rel.mutualStatus === 'open_mutual') badgeSubLabel = '💞 Обоюдная симпатия';
+            shortBadge = mut.shortLabel || '💘 Симпатия';
         }
 
         ctx.save();
@@ -2060,40 +2255,41 @@ function drawRelationshipGraph() {
             ctx.setLineDash([6, 5]);
         }
         ctx.strokeStyle = roleMeta.color || '#7aa2f7';
-        ctx.lineWidth = isSelected ? 3.5 : 2.2;
+        ctx.lineWidth = isSelected ? 3.2 : 2.0;
         ctx.moveTo(x1, y1);
         ctx.lineTo(x2, y2);
         ctx.stroke();
         ctx.setLineDash([]);
 
-        // Directional Arrowhead for parent->child or one-sided crush
         if (isDirected) {
             const angle = Math.atan2(y2 - y1, x2 - x1);
-            const targetDist = 31;
+            const targetDist = 30;
             const ax = x2 - Math.cos(angle) * targetDist;
             const ay = y2 - Math.sin(angle) * targetDist;
             ctx.fillStyle = roleMeta.color;
             ctx.beginPath();
             ctx.moveTo(ax, ay);
-            ctx.lineTo(ax - 11 * Math.cos(angle - Math.PI / 6), ay - 11 * Math.sin(angle - Math.PI / 6));
-            ctx.lineTo(ax - 11 * Math.cos(angle + Math.PI / 6), ay - 11 * Math.sin(angle + Math.PI / 6));
+            ctx.lineTo(ax - 10 * Math.cos(angle - Math.PI / 6), ay - 10 * Math.sin(angle - Math.PI / 6));
+            ctx.lineTo(ax - 10 * Math.cos(angle + Math.PI / 6), ay - 10 * Math.sin(angle + Math.PI / 6));
             ctx.closePath();
             ctx.fill();
         }
 
-        // Edge Center Label Badge
-        const mx = (x1 + x2) / 2;
-        const my = (y1 + y2) / 2;
+        // Stagger badge position slightly along the line (t between 0.42 and 0.58) to reduce center pile-ups
+        const t = edgeIdx % 3 === 0 ? 0.5 : edgeIdx % 3 === 1 ? 0.41 : 0.59;
+        const mx = x1 + (x2 - x1) * t;
+        const my = y1 + (y2 - y1) * t;
+
         const satSign = rel.satisfaction > 0 ? `+${rel.satisfaction}%` : `${rel.satisfaction}%`;
-        const labelText = `${badgeSubLabel} (${satSign})`;
-        ctx.font = '600 10.5px Inter, sans-serif';
+        const labelText = `${shortBadge} (${satSign})`;
+        ctx.font = '600 9.5px Inter, sans-serif';
         const textWidth = ctx.measureText(labelText).width;
 
-        ctx.fillStyle = 'rgba(13, 17, 31, 0.9)';
+        ctx.fillStyle = 'rgba(10, 13, 24, 0.92)';
         ctx.strokeStyle = roleMeta.color;
-        ctx.lineWidth = 1;
+        ctx.lineWidth = isSelected ? 1.5 : 1;
         ctx.beginPath();
-        ctx.roundRect(mx - textWidth / 2 - 6, my - 10, textWidth + 12, 20, 6);
+        ctx.roundRect(mx - textWidth / 2 - 5, my - 8.5, textWidth + 10, 17, 5);
         ctx.fill();
         ctx.stroke();
 
@@ -2102,25 +2298,26 @@ function drawRelationshipGraph() {
         ctx.textBaseline = 'middle';
         ctx.fillText(labelText, mx, my);
         ctx.restore();
-    }
+    });
 
-    // 2. Draw Character & NPC Nodes
+    // 2. Draw Perfectly Circular Character & NPC Nodes
     for (const node of prof.nodes) {
-        const x = node.x || 200;
-        const y = node.y || 200;
-        const radius = 27;
+        const x = node.x || 180;
+        const y = node.y || 180;
+        const radius = 26;
 
         const borderColor =
             node.type === 'bot' ? '#7aa2f7' : node.type === 'persona' ? '#ff7eb6' : '#9ece6a';
 
+        // Outer halo ring
         ctx.save();
         ctx.shadowColor = borderColor;
-        ctx.shadowBlur = 12;
+        ctx.shadowBlur = 14;
         ctx.beginPath();
         ctx.arc(x, y, radius, 0, Math.PI * 2);
-        ctx.fillStyle = '#181e36';
+        ctx.fillStyle = '#151a30';
         ctx.fill();
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 2.8;
         ctx.strokeStyle = borderColor;
         ctx.stroke();
         ctx.restore();
@@ -2139,7 +2336,7 @@ function drawRelationshipGraph() {
                 hasValidPhoto = true;
                 ctx.save();
                 ctx.beginPath();
-                ctx.arc(x, y, radius - 2, 0, Math.PI * 2);
+                ctx.arc(x, y, radius - 1.5, 0, Math.PI * 2);
                 ctx.clip();
                 ctx.drawImage(img, x - radius, y - radius, radius * 2, radius * 2);
                 ctx.restore();
@@ -2147,31 +2344,34 @@ function drawRelationshipGraph() {
         }
 
         if (hasValidPhoto) {
-            const nameLabel = node.name.length > 18 ? node.name.slice(0, 16) + '…' : node.name;
-            ctx.font = '600 11.5px Inter, sans-serif';
+            const nameLabel = node.name.length > 16 ? node.name.slice(0, 14) + '…' : node.name;
+            ctx.font = '600 10.5px Inter, sans-serif';
             const nw = ctx.measureText(nameLabel).width;
-            ctx.fillStyle = 'rgba(11, 14, 26, 0.88)';
+            ctx.fillStyle = 'rgba(9, 12, 22, 0.9)';
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+            ctx.lineWidth = 1;
             ctx.beginPath();
-            ctx.roundRect(x - nw / 2 - 6, y + radius + 5, nw + 12, 18, 5);
+            ctx.roundRect(x - nw / 2 - 5, y + radius + 4, nw + 10, 16, 5);
             ctx.fill();
+            ctx.stroke();
 
             ctx.fillStyle = '#eef1ff';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText(nameLabel, x, y + radius + 14);
+            ctx.fillText(nameLabel, x, y + radius + 12);
         } else {
             ctx.fillStyle = '#eef1ff';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             const cleanName = (node.name || '?').trim();
             if (cleanName.length <= 8) {
-                ctx.font = '700 11px Inter, sans-serif';
+                ctx.font = '700 10.5px Inter, sans-serif';
                 ctx.fillText(cleanName, x, y);
             } else {
                 const words = cleanName.split(/\s+/);
-                ctx.font = '700 10px Inter, sans-serif';
+                ctx.font = '700 9.5px Inter, sans-serif';
                 if (words.length >= 2) {
-                    ctx.fillText(words[0].slice(0, 8), x, y - 6);
+                    ctx.fillText(words[0].slice(0, 8), x, y - 5);
                     ctx.fillText(words[1].slice(0, 8), x, y + 6);
                 } else {
                     ctx.fillText(cleanName.slice(0, 7) + '…', x, y);
@@ -2412,7 +2612,7 @@ function renderStylePane() {
 }
 
 /**
- * Render Pane 4: Visual Themes & Live Prompt Preview
+ * Render Pane 4: Interactive Gallery of 16 Themes + Customizer & Live Prompt Preview
  */
 function renderThemePane() {
     const pane = document.getElementById('bm2_pane_theme');
@@ -2421,22 +2621,42 @@ function renderThemePane() {
     const s = getSettings();
     const ct = s.customTheme || BUILTIN_THEMES.moonlight;
 
-    const themeOpts = Object.entries(BUILTIN_THEMES)
-        .map(([k, v]) => `<option value="${k}" ${s.activeTheme === k ? 'selected' : ''}>${v.name}</option>`)
+    // Build visual cards for all 16 themes
+    const galleryCardsHtml = Object.entries(BUILTIN_THEMES)
+        .map(([key, t]) => {
+            const isActive = s.activeTheme === key;
+            return `
+            <div class="bm2_theme_card ${isActive ? 'bm2_theme_active' : ''}"
+                 data-theme-key="${key}"
+                 style="background: linear-gradient(145deg, ${t.bgCard}, ${t.bgMain}); color: ${t.textMain};">
+                <div class="bm2_theme_card_top">
+                    <span class="bm2_theme_card_title" style="color:${t.accent};">${escapeHtml(t.name)}</span>
+                    ${isActive ? '<span>✓</span>' : ''}
+                </div>
+                <span class="bm2_theme_card_desc" style="color:${t.textMuted};">${escapeHtml(t.desc || '')}</span>
+                <div class="bm2_theme_swatches">
+                    <i class="bm2_swatch_dot" style="background:${t.bgMain}" title="Фон"></i>
+                    <i class="bm2_swatch_dot" style="background:${t.bgCard}" title="Карточки"></i>
+                    <i class="bm2_swatch_dot" style="background:${t.accent}" title="Акцент 1"></i>
+                    <i class="bm2_swatch_dot" style="background:${t.accent2}" title="Акцент 2"></i>
+                </div>
+            </div>`;
+        })
         .join('');
 
     const combinedPrompt = [buildRelationshipPromptText(), buildStylePromptText()].filter(Boolean).join('\n\n');
 
     pane.innerHTML = `
         <div class="bm2_card">
-            <h4 class="bm2_card_title">🎨 Оформление панели BlueMoon</h4>
-            <div>
-                <label class="bm2_label">Цветовая тема:</label>
-                <select id="bm2_theme_select" class="bm2_select">
-                    ${themeOpts}
-                    <option value="custom" ${s.activeTheme === 'custom' ? 'selected' : ''}>🖌️ Своя тема (Custom)</option>
-                </select>
+            <h4 class="bm2_card_title">🎨 Галерея тем оформления (16 стилей)</h4>
+            <p class="bm2_settings_hint" style="margin:0;">Нажмите на любую карточку, чтобы мгновенно переключить атмосферу окна и древа связей:</p>
+            <div class="bm2_theme_gallery">
+                ${galleryCardsHtml}
             </div>
+        </div>
+
+        <div class="bm2_card">
+            <h4 class="bm2_card_title">🖌️ Ручная настройка цветов (Своя тема)</h4>
             <div class="bm2_grid_2">
                 <div>
                     <label class="bm2_label">Фон окна</label>
@@ -2447,12 +2667,12 @@ function renderThemePane() {
                     <input type="color" id="bm2_col_card" class="bm2_input" value="${ct.bgCard}" />
                 </div>
                 <div>
-                    <label class="bm2_label">Основной акцент</label>
+                    <label class="bm2_label">Основной акцент (Свечение)</label>
                     <input type="color" id="bm2_col_acc" class="bm2_input" value="${ct.accent}" />
                 </div>
                 <div>
-                    <label class="bm2_label">Цвет текста</label>
-                    <input type="color" id="bm2_col_txt" class="bm2_input" value="${ct.textMain}" />
+                    <label class="bm2_label">Второй акцент (Градиент)</label>
+                    <input type="color" id="bm2_col_acc2" class="bm2_input" value="${ct.accent2 || ct.accent}" />
                 </div>
             </div>
         </div>
@@ -2460,24 +2680,28 @@ function renderThemePane() {
         <div class="bm2_card">
             <h4 class="bm2_card_title">👁️ Живой просмотр системного промпта для ИИ</h4>
             <p class="bm2_settings_hint" style="margin:0;">
-                Этот блок автоматически вшивается в контекст нейросети перед каждым ответом (на глубине Depth = ${s.injectionDepth}). Здесь вы видите все строгие инструкции по связям, тайнам, жанрам и силе ползунков:
+                Этот блок автоматически вшивается в контекст нейросети перед каждым ответом (на глубине Depth = ${s.injectionDepth}):
             </p>
             <div class="bm2_prompt_preview" id="bm2_live_prompt_box">${escapeHtml(combinedPrompt || '(Инъекция отключена)')}</div>
         </div>
     `;
 
-    pane.querySelector('#bm2_theme_select').addEventListener('change', (e) => {
-        s.activeTheme = e.target.value;
-        if (s.activeTheme !== 'custom' && BUILTIN_THEMES[s.activeTheme]) {
-            s.customTheme = { ...BUILTIN_THEMES[s.activeTheme] };
-        }
-        saveSettings();
-        applyThemeVariables();
-        renderThemePane();
+    pane.querySelectorAll('.bm2_theme_card').forEach((card) => {
+        card.addEventListener('click', () => {
+            const key = card.dataset.themeKey;
+            if (!BUILTIN_THEMES[key]) return;
+            s.activeTheme = key;
+            s.customTheme = { ...BUILTIN_THEMES[key] };
+            saveSettings();
+            applyThemeVariables();
+            renderThemePane();
+        });
     });
 
     const bindColor = (id, key) => {
-        pane.querySelector(id).addEventListener('input', (e) => {
+        const el = pane.querySelector(id);
+        if (!el) return;
+        el.addEventListener('input', (e) => {
             s.activeTheme = 'custom';
             s.customTheme[key] = e.target.value;
             saveSettings();
@@ -2487,7 +2711,7 @@ function renderThemePane() {
     bindColor('#bm2_col_bg', 'bgMain');
     bindColor('#bm2_col_card', 'bgCard');
     bindColor('#bm2_col_acc', 'accent');
-    bindColor('#bm2_col_txt', 'textMain');
+    bindColor('#bm2_col_acc2', 'accent2');
 }
 
 /**
@@ -2624,7 +2848,7 @@ function init() {
         }
     }
 
-    console.log(`[${MODULE_NAME}] BlueMoon v2.3.0 loaded.`);
+    console.log(`[${MODULE_NAME}] BlueMoon v2.4.0 loaded.`);
 }
 
 jQuery(() => {
