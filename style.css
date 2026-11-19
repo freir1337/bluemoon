@@ -1,6 +1,6 @@
 /* ==========================================================================
    BlueMoon v2.5.5: Relationships, Obsidian Graph & Narrative Style Engine
-   100% Matched to index.js DOM classes + Mobile Fullscreen Viewport Fix
+   Gradient Glow Borders Restored + Mobile Viewport & Directory Fixes
    ========================================================================== */
 
 :root {
@@ -11,8 +11,8 @@
     --bm2-text-muted: #9aa5ce;
     --bm2-accent: #7aa2f7;
     --bm2-accent-2: #bb9af7;
-    --bm2-border: rgba(122, 162, 247, 0.32);
-    --bm2-glow: rgba(122, 162, 247, 0.18);
+    --bm2-border: rgba(122, 162, 247, 0.38);
+    --bm2-glow: rgba(122, 162, 247, 0.22);
     --bm2-canvas-bg-1: #171d36;
     --bm2-canvas-bg-2: #0e1222;
     --bm2-danger: #f7768e;
@@ -31,7 +31,7 @@
 }
 
 /* --------------------------------------------------------------------------
-   Modal Overlay & Window (Strict Mobile Viewport Fix)
+   Modal Overlay & Window (Gradient Border + Glow + Strict Mobile Center)
    -------------------------------------------------------------------------- */
 #bm2_overlay {
     position: fixed !important;
@@ -44,7 +44,7 @@
     height: 100dvh !important;
     margin: 0 !important;
     z-index: 2147483640 !important;
-    background: rgba(5, 7, 14, 0.85) !important;
+    background: rgba(5, 7, 14, 0.82) !important;
     display: none;
     align-items: center !important;
     justify-content: center !important;
@@ -65,11 +65,16 @@
     height: 90dvh !important;
     max-height: 90dvh !important;
     margin: auto !important;
-    background: var(--bm2-bg-main) !important;
     color: var(--bm2-text-main) !important;
-    border: 1.5px solid var(--bm2-border) !important;
-    border-radius: 18px !important;
-    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.85), 0 0 28px var(--bm2-glow) !important;
+    border-radius: 20px !important;
+    border: 2px solid transparent !important;
+    background:
+        linear-gradient(var(--bm2-bg-main), var(--bm2-bg-main)) padding-box,
+        linear-gradient(135deg, var(--bm2-accent), var(--bm2-accent-2), var(--bm2-accent)) border-box !important;
+    box-shadow:
+        0 20px 55px rgba(0, 0, 0, 0.85),
+        0 0 26px var(--bm2-glow),
+        inset 0 0 18px rgba(255, 255, 255, 0.03) !important;
     display: flex !important;
     flex-direction: column !important;
     overflow: hidden !important;
@@ -85,16 +90,17 @@
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    padding: 10px 14px;
-    background: var(--bm2-bg-card);
-    border-bottom: 1px solid var(--bm2-border);
+    padding: 11px 14px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, var(--bm2-bg-card) 100%);
+    border-bottom: 1.5px solid var(--bm2-border);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
     flex-shrink: 0 !important;
 }
 
 .bm2_title_wrap {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 7px;
     min-width: 0;
     flex: 1;
 }
@@ -102,28 +108,33 @@
 .bm2_moon_icon {
     font-size: 1.25rem;
     flex-shrink: 0;
+    filter: drop-shadow(0 0 8px var(--bm2-accent));
 }
 
 .bm2_title_wrap h3 {
     margin: 0;
-    font-size: 1.08rem;
+    font-size: 1.05rem;
     font-weight: 800;
     color: var(--bm2-text-main);
     white-space: nowrap;
 }
 
 .bm2_badge_char {
-    font-size: 0.75rem;
+    font-size: 0.76rem;
     font-weight: 700;
-    padding: 3px 9px;
+    padding: 3px 10px;
     border-radius: 999px;
-    background: var(--bm2-bg-input);
+    border: 1.5px solid transparent;
+    background:
+        linear-gradient(var(--bm2-bg-input), var(--bm2-bg-input)) padding-box,
+        linear-gradient(135deg, var(--bm2-accent), var(--bm2-accent-2)) border-box;
     color: var(--bm2-accent);
-    border: 1px solid var(--bm2-border);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 115px;
+    min-width: 48px;
+    max-width: 110px;
+    box-shadow: 0 0 10px var(--bm2-glow);
 }
 
 .bm2_header_actions {
@@ -137,9 +148,11 @@
 .bm2_close_btn {
     min-height: 38px;
     padding: 6px 11px;
-    border-radius: 10px;
-    border: 1px solid var(--bm2-border);
-    background: var(--bm2-bg-input);
+    border-radius: 11px;
+    border: 1.5px solid transparent;
+    background:
+        linear-gradient(var(--bm2-bg-input), var(--bm2-bg-input)) padding-box,
+        linear-gradient(135deg, var(--bm2-accent), var(--bm2-accent-2)) border-box;
     color: var(--bm2-text-main);
     font-size: 0.8rem;
     font-weight: 700;
@@ -148,12 +161,14 @@
     align-items: center;
     gap: 5px;
     white-space: nowrap;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
 }
 
 .bm2_close_btn {
-    border-color: rgba(247, 118, 142, 0.4);
-    color: #ff98ac;
-    background: rgba(247, 118, 142, 0.12);
+    background:
+        linear-gradient(rgba(55, 22, 32, 0.9), rgba(45, 18, 26, 0.9)) padding-box,
+        linear-gradient(135deg, #f7768e, #ff9e64) border-box;
+    color: #ffb3c1;
 }
 
 .bm2_tabs {
@@ -162,15 +177,15 @@
     gap: 6px;
     padding: 8px 12px;
     background: var(--bm2-bg-card);
-    border-bottom: 1px solid var(--bm2-border);
+    border-bottom: 1.5px solid var(--bm2-border);
     flex-shrink: 0 !important;
 }
 
 .bm2_tab_btn {
     min-height: 44px;
     padding: 6px 4px;
-    border-radius: 11px;
-    border: 1px solid transparent;
+    border-radius: 12px;
+    border: 1.5px solid transparent;
     background: var(--bm2-bg-input);
     color: var(--bm2-text-muted);
     font-size: 0.84rem;
@@ -185,10 +200,12 @@
 }
 
 .bm2_tab_btn.bm2_active {
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.03));
+    background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.09), rgba(0, 0, 0, 0.25)) padding-box,
+        linear-gradient(135deg, var(--bm2-accent), var(--bm2-accent-2)) border-box;
+    background-color: var(--bm2-bg-card);
     color: var(--bm2-accent);
-    border-color: var(--bm2-accent);
-    box-shadow: 0 0 12px var(--bm2-glow);
+    box-shadow: 0 0 14px var(--bm2-glow);
 }
 
 /* --------------------------------------------------------------------------
@@ -202,14 +219,14 @@
     padding: 12px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 14px;
     -webkit-overflow-scrolling: touch;
 }
 
 .bm2_pane {
     display: none;
     flex-direction: column;
-    gap: 12px;
+    gap: 14px;
     width: 100%;
     box-sizing: border-box;
     flex-shrink: 0;
@@ -220,13 +237,16 @@
 }
 
 /* --------------------------------------------------------------------------
-   Cards & Common Elements
+   Cards with Signature Gradient Border & Subtle Glow
    -------------------------------------------------------------------------- */
 .bm2_card {
-    background: var(--bm2-bg-card);
-    border: 1px solid var(--bm2-border);
-    border-radius: 14px;
-    padding: 12px;
+    border-radius: 16px;
+    border: 1.5px solid transparent;
+    background:
+        linear-gradient(var(--bm2-bg-card), var(--bm2-bg-card)) padding-box,
+        linear-gradient(135deg, var(--bm2-accent), rgba(255, 255, 255, 0.12), var(--bm2-accent-2)) border-box;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.38), 0 0 16px var(--bm2-glow);
+    padding: 13px;
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -244,9 +264,10 @@
 
 .bm2_card_title {
     margin: 0;
-    font-size: 0.95rem;
+    font-size: 0.98rem;
     font-weight: 800;
     color: var(--bm2-accent);
+    text-shadow: 0 0 10px var(--bm2-glow);
 }
 
 .bm2_label {
@@ -259,9 +280,9 @@
 
 .bm2_settings_hint,
 .bm2_slider_hint {
-    font-size: 0.77rem;
+    font-size: 0.78rem;
     color: var(--bm2-text-muted);
-    line-height: 1.38;
+    line-height: 1.4;
 }
 
 .bm2_grid_2 {
@@ -277,7 +298,7 @@
 }
 
 /* --------------------------------------------------------------------------
-   Inputs, Selects, Buttons
+   Inputs, Selects, Buttons with Gradient Frames
    -------------------------------------------------------------------------- */
 .bm2_input,
 .bm2_select,
@@ -285,8 +306,8 @@
     width: 100%;
     min-height: 44px;
     padding: 8px 11px;
-    border-radius: 10px;
-    border: 1px solid var(--bm2-border);
+    border-radius: 11px;
+    border: 1.5px solid var(--bm2-border);
     background: var(--bm2-bg-input);
     color: var(--bm2-text-main);
     font-size: 0.9rem;
@@ -298,7 +319,7 @@
 .bm2_select:focus,
 .bm2_textarea:focus {
     border-color: var(--bm2-accent);
-    box-shadow: 0 0 8px var(--bm2-glow);
+    box-shadow: 0 0 12px var(--bm2-glow);
 }
 
 .bm2_textarea {
@@ -309,12 +330,14 @@
 
 .bm2_btn {
     min-height: 42px;
-    padding: 8px 12px;
-    border-radius: 10px;
-    border: 1px solid var(--bm2-border);
-    background: var(--bm2-bg-input);
+    padding: 8px 13px;
+    border-radius: 11px;
+    border: 1.5px solid transparent;
+    background:
+        linear-gradient(var(--bm2-bg-input), var(--bm2-bg-input)) padding-box,
+        linear-gradient(135deg, var(--bm2-accent), var(--bm2-accent-2)) border-box;
     color: var(--bm2-text-main);
-    font-size: 0.84rem;
+    font-size: 0.85rem;
     font-weight: 700;
     cursor: pointer;
     display: inline-flex;
@@ -325,19 +348,22 @@
     user-select: none;
     box-sizing: border-box;
     transition: all 0.15s ease;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.28);
 }
 
 .bm2_btn_primary {
-    background: linear-gradient(135deg, var(--bm2-accent), var(--bm2-accent-2));
-    color: #0b0d14;
-    border-color: transparent;
+    background: linear-gradient(135deg, var(--bm2-accent), var(--bm2-accent-2)) !important;
+    color: #0b0d14 !important;
+    border: none !important;
     font-weight: 800;
+    box-shadow: 0 4px 14px var(--bm2-glow);
 }
 
 .bm2_btn_danger {
-    background: rgba(247, 118, 142, 0.15);
-    color: #ff8ca1;
-    border-color: rgba(247, 118, 142, 0.4);
+    background:
+        linear-gradient(rgba(55, 22, 32, 0.85), rgba(45, 18, 26, 0.85)) padding-box,
+        linear-gradient(135deg, #f7768e, #ff9e64) border-box;
+    color: #ff98ac;
 }
 
 .bm2_btn_row {
@@ -352,46 +378,47 @@
 
 .bm2_icon_btn,
 .bm2_icon_sm_btn {
-    width: 32px;
-    height: 32px;
-    min-width: 32px;
-    min-height: 32px;
-    border-radius: 8px;
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    min-height: 34px;
+    border-radius: 9px;
     border: 1px solid var(--bm2-border);
     background: var(--bm2-bg-card);
     color: var(--bm2-text-main);
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.82rem;
+    font-size: 0.85rem;
     cursor: pointer;
     padding: 0;
     flex-shrink: 0;
 }
 
 /* --------------------------------------------------------------------------
-   Participants Strip & Fixed 34x34 Avatars (.bm2_node_pill)
+   Participants Strip & Fixed 34x34 Avatars (Full Height, Not Cut Off)
    -------------------------------------------------------------------------- */
 .bm2_nodes_strip {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
-    max-height: 175px;
-    overflow-y: auto;
-    padding-right: 2px;
-    -webkit-overflow-scrolling: touch;
+    gap: 8px;
+    max-height: none !important;
+    overflow: visible !important;
 }
 
 .bm2_node_pill {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    padding: 5px 9px;
-    border-radius: 12px;
-    background: var(--bm2-bg-input);
-    border: 1px solid var(--bm2-border);
+    padding: 6px 10px;
+    border-radius: 13px;
+    border: 1.5px solid transparent;
+    background:
+        linear-gradient(var(--bm2-bg-input), var(--bm2-bg-input)) padding-box,
+        linear-gradient(135deg, var(--bm2-accent), rgba(255, 255, 255, 0.1), var(--bm2-accent-2)) border-box;
     max-width: 100%;
     box-sizing: border-box;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
 }
 
 .bm2_node_avatar {
@@ -405,6 +432,7 @@
     overflow: hidden !important;
     background: var(--bm2-bg-card);
     border: 1.5px solid var(--bm2-accent);
+    box-shadow: 0 0 8px var(--bm2-glow);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -431,7 +459,7 @@
 }
 
 .bm2_node_name {
-    font-size: 0.85rem;
+    font-size: 0.86rem;
     font-weight: 700;
     color: var(--bm2-text-main);
     white-space: nowrap;
@@ -482,8 +510,8 @@
 .bm2_mode_switch {
     display: inline-flex;
     background: var(--bm2-bg-input);
-    border: 1px solid var(--bm2-border);
-    border-radius: 10px;
+    border: 1.5px solid var(--bm2-border);
+    border-radius: 11px;
     padding: 3px;
     gap: 4px;
 }
@@ -504,6 +532,7 @@
     background: var(--bm2-bg-card);
     color: var(--bm2-accent);
     border-color: var(--bm2-accent);
+    box-shadow: 0 0 8px var(--bm2-glow);
 }
 
 .bm2_filter_bar {
@@ -519,7 +548,7 @@
     min-height: 36px;
     padding: 6px 13px;
     border-radius: 999px;
-    border: 1px solid var(--bm2-border);
+    border: 1.5px solid var(--bm2-border);
     background: var(--bm2-bg-input);
     color: var(--bm2-text-main);
     font-size: 0.8rem;
@@ -534,10 +563,11 @@
     color: #0b0d14;
     border-color: transparent;
     font-weight: 800;
+    box-shadow: 0 0 12px var(--bm2-glow);
 }
 
 /* --------------------------------------------------------------------------
-   Structured Relationship Directory (NO SQUISHING / FULL HEIGHT!)
+   Structured Relationship Directory (NO SQUISHING + Gradient Borders)
    -------------------------------------------------------------------------- */
 .bm2_directory_box {
     display: flex;
@@ -549,13 +579,16 @@
 }
 
 .bm2_dir_section {
-    background: var(--bm2-bg-input);
-    border: 1.5px solid var(--bm2-border);
-    border-radius: 12px;
+    border-radius: 13px;
+    border: 1.5px solid transparent;
+    background:
+        linear-gradient(var(--bm2-bg-input), var(--bm2-bg-input)) padding-box,
+        linear-gradient(135deg, var(--bm2-accent), rgba(255, 255, 255, 0.08), var(--bm2-accent-2)) border-box;
     overflow: visible !important;
     flex-shrink: 0 !important;
     display: flex;
     flex-direction: column;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
 }
 
 .bm2_dir_sec_header {
@@ -584,7 +617,7 @@
     min-height: 48px;
     padding: 9px 11px;
     border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     background: var(--bm2-bg-card);
     color: var(--bm2-text-main);
     display: flex;
@@ -601,8 +634,11 @@
 }
 
 .bm2_dir_item.bm2_active {
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.03));
-    border: 1.5px solid var(--bm2-accent);
+    border: 1.5px solid transparent;
+    background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(0, 0, 0, 0.2)) padding-box,
+        linear-gradient(135deg, var(--bm2-accent), var(--bm2-accent-2)) border-box;
+    background-color: var(--bm2-bg-card);
     box-shadow: 0 0 12px var(--bm2-glow);
 }
 
@@ -739,16 +775,19 @@ input[type="range"].bm2_range {
 }
 
 /* --------------------------------------------------------------------------
-   Obsidian Relationship Graph Canvas
+   Obsidian Relationship Graph Canvas (Top-Right Toolbar + Gradient Frame)
    -------------------------------------------------------------------------- */
 .bm2_graph_container {
     position: relative;
     width: 100%;
-    height: 430px;
-    min-height: 360px;
-    border-radius: 14px;
-    border: 1.5px solid var(--bm2-border);
-    background: radial-gradient(circle at center, var(--bm2-canvas-bg-1) 0%, var(--bm2-canvas-bg-2) 100%);
+    height: 450px;
+    min-height: 380px;
+    border-radius: 15px;
+    border: 1.5px solid transparent;
+    background:
+        radial-gradient(circle at center, var(--bm2-canvas-bg-1) 0%, var(--bm2-canvas-bg-2) 100%) padding-box,
+        linear-gradient(135deg, var(--bm2-accent), var(--bm2-accent-2)) border-box;
+    box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.6), 0 0 14px var(--bm2-glow);
     overflow: hidden;
     touch-action: none;
 }
@@ -762,7 +801,7 @@ input[type="range"].bm2_range {
 
 .bm2_graph_toolbar {
     position: absolute;
-    bottom: 10px;
+    top: 10px;
     right: 10px;
     display: flex;
     gap: 6px;
@@ -773,7 +812,7 @@ input[type="range"].bm2_range {
     width: 40px;
     height: 40px;
     border-radius: 10px;
-    border: 1px solid var(--bm2-border);
+    border: 1.5px solid var(--bm2-border);
     background: rgba(14, 18, 34, 0.88);
     color: var(--bm2-text-main);
     font-size: 1.05rem;
@@ -782,6 +821,7 @@ input[type="range"].bm2_range {
     display: flex;
     align-items: center;
     justify-content: center;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.45);
 }
 
 .bm2_graph_legend {
@@ -935,4 +975,4 @@ input[type="range"].bm2_range {
     max-height: 280px;
     overflow-y: auto;
     color: var(--bm2-text-main);
-}
+       }
