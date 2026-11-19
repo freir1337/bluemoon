@@ -1,22 +1,22 @@
 /* ==========================================================================
    BlueMoon v2.5.5: Relationships, Obsidian Graph & Narrative Style Engine
-   Mobile-First Responsive Stylesheet (44px+ Touch Targets, Dynamic Themes)
+   100% Matched to index.js DOM classes + Uncompressed Relationship Directory
    ========================================================================== */
 
 :root {
-    --bm2-bg-main: #0f111a;
-    --bm2-bg-card: #181b28;
-    --bm2-bg-input: #12141f;
-    --bm2-text-main: #e4e8f7;
-    --bm2-text-muted: #8c95b5;
+    --bm2-bg-main: #0e1222;
+    --bm2-bg-card: #171d36;
+    --bm2-bg-input: #0f1426;
+    --bm2-text-main: #eef1ff;
+    --bm2-text-muted: #9aa5ce;
     --bm2-accent: #7aa2f7;
     --bm2-accent-2: #bb9af7;
-    --bm2-border: rgba(122, 162, 247, 0.28);
-    --bm2-glow: rgba(122, 162, 247, 0.16);
-    --bm2-canvas-bg-1: #161a2e;
-    --bm2-canvas-bg-2: #0a0b10;
+    --bm2-border: rgba(122, 162, 247, 0.32);
+    --bm2-glow: rgba(122, 162, 247, 0.18);
+    --bm2-canvas-bg-1: #171d36;
+    --bm2-canvas-bg-2: #0e1222;
     --bm2-danger: #f7768e;
-    --bm2-success: #73daca;
+    --bm2-success: #9ece6a;
 }
 
 /* --------------------------------------------------------------------------
@@ -25,24 +25,19 @@
 #bm2_wand_item {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     cursor: pointer;
     user-select: none;
 }
 
-#bm2_wand_item .bm2_wand_icon {
-    color: var(--bm2-accent);
-    font-size: 1.1em;
-}
-
 /* --------------------------------------------------------------------------
-   Modal Overlay & Main Window
+   Modal Overlay & Window
    -------------------------------------------------------------------------- */
 #bm2_overlay {
     position: fixed;
     inset: 0;
     z-index: 10005;
-    background: rgba(5, 7, 12, 0.78);
+    background: rgba(5, 7, 14, 0.8);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     display: none;
@@ -65,7 +60,7 @@
     color: var(--bm2-text-main);
     border: 1.5px solid var(--bm2-border);
     border-radius: 18px;
-    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.75), 0 0 28px var(--bm2-glow);
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.78), 0 0 28px var(--bm2-glow);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -74,14 +69,14 @@
 }
 
 /* --------------------------------------------------------------------------
-   Header & Navigation Tabs
+   Header & Tabs
    -------------------------------------------------------------------------- */
 .bm2_header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    padding: 12px 14px;
+    padding: 10px 14px;
     background: var(--bm2-bg-card);
     border-bottom: 1px solid var(--bm2-border);
     flex-shrink: 0;
@@ -95,16 +90,21 @@
     flex: 1;
 }
 
-.bm2_title {
+.bm2_moon_icon {
+    font-size: 1.25rem;
+    flex-shrink: 0;
+}
+
+.bm2_title_wrap h3 {
+    margin: 0;
     font-size: 1.08rem;
     font-weight: 800;
     color: var(--bm2-text-main);
-    letter-spacing: 0.3px;
     white-space: nowrap;
 }
 
-.bm2_badge {
-    font-size: 0.76rem;
+.bm2_badge_char {
+    font-size: 0.75rem;
     font-weight: 700;
     padding: 3px 9px;
     border-radius: 999px;
@@ -114,7 +114,7 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 140px;
+    max-width: 115px;
 }
 
 .bm2_header_actions {
@@ -122,6 +122,29 @@
     align-items: center;
     gap: 6px;
     flex-shrink: 0;
+}
+
+.bm2_prompt_top_btn,
+.bm2_close_btn {
+    min-height: 38px;
+    padding: 6px 11px;
+    border-radius: 10px;
+    border: 1px solid var(--bm2-border);
+    background: var(--bm2-bg-input);
+    color: var(--bm2-text-main);
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+}
+
+.bm2_close_btn {
+    border-color: rgba(247, 118, 142, 0.4);
+    color: #ff98ac;
+    background: rgba(247, 118, 142, 0.12);
 }
 
 .bm2_tabs {
@@ -141,10 +164,10 @@
     border: 1px solid transparent;
     background: var(--bm2-bg-input);
     color: var(--bm2-text-muted);
-    font-size: 0.85rem;
+    font-size: 0.84rem;
     font-weight: 700;
     cursor: pointer;
-    transition: all 0.18s ease;
+    transition: all 0.16s ease;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -152,20 +175,15 @@
     white-space: nowrap;
 }
 
-.bm2_tab_btn:hover {
-    color: var(--bm2-text-main);
-    border-color: var(--bm2-border);
-}
-
 .bm2_tab_btn.bm2_active {
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.03));
     color: var(--bm2-accent);
     border-color: var(--bm2-accent);
-    box-shadow: 0 0 14px var(--bm2-glow);
+    box-shadow: 0 0 12px var(--bm2-glow);
 }
 
 /* --------------------------------------------------------------------------
-   Body & Scrollable Tab Panes
+   Body & Scrollable Panes
    -------------------------------------------------------------------------- */
 .bm2_body {
     flex: 1;
@@ -181,7 +199,7 @@
 .bm2_pane {
     display: none;
     flex-direction: column;
-    gap: 14px;
+    gap: 12px;
     width: 100%;
     box-sizing: border-box;
 }
@@ -191,24 +209,21 @@
 }
 
 /* --------------------------------------------------------------------------
-   Cards, Typography & Grids
+   Cards & Common Elements
    -------------------------------------------------------------------------- */
 .bm2_card {
     background: var(--bm2-bg-card);
     border: 1px solid var(--bm2-border);
     border-radius: 14px;
-    padding: 13px;
+    padding: 12px;
     display: flex;
     flex-direction: column;
-    gap: 9px;
+    gap: 10px;
     flex-shrink: 0;
     box-sizing: border-box;
 }
 
-.bm2_card_title {
-    font-size: 0.96rem;
-    font-weight: 800;
-    color: var(--bm2-accent);
+.bm2_card_header {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -216,17 +231,32 @@
     flex-wrap: wrap;
 }
 
+.bm2_card_title {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: var(--bm2-accent);
+}
+
 .bm2_label {
-    font-size: 0.81rem;
+    display: block;
+    font-size: 0.8rem;
     font-weight: 600;
     color: var(--bm2-text-muted);
-    margin-top: 2px;
+    margin-bottom: 4px;
+}
+
+.bm2_settings_hint,
+.bm2_slider_hint {
+    font-size: 0.77rem;
+    color: var(--bm2-text-muted);
+    line-height: 1.38;
 }
 
 .bm2_grid_2 {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 10px;
+    gap: 8px;
 }
 
 @media (max-width: 520px) {
@@ -236,45 +266,44 @@
 }
 
 /* --------------------------------------------------------------------------
-   Inputs, Selects, Textareas & Buttons
+   Inputs, Selects, Buttons
    -------------------------------------------------------------------------- */
 .bm2_input,
 .bm2_select,
 .bm2_textarea {
     width: 100%;
     min-height: 44px;
-    padding: 9px 12px;
+    padding: 8px 11px;
     border-radius: 10px;
     border: 1px solid var(--bm2-border);
     background: var(--bm2-bg-input);
     color: var(--bm2-text-main);
-    font-size: 0.92rem;
+    font-size: 0.9rem;
     box-sizing: border-box;
     outline: none;
-    transition: border-color 0.15s ease;
 }
 
 .bm2_input:focus,
 .bm2_select:focus,
 .bm2_textarea:focus {
     border-color: var(--bm2-accent);
-    box-shadow: 0 0 10px var(--bm2-glow);
+    box-shadow: 0 0 8px var(--bm2-glow);
 }
 
 .bm2_textarea {
-    min-height: 92px;
+    min-height: 86px;
     resize: vertical;
-    line-height: 1.45;
+    line-height: 1.4;
 }
 
 .bm2_btn {
-    min-height: 44px;
-    padding: 8px 13px;
+    min-height: 42px;
+    padding: 8px 12px;
     border-radius: 10px;
     border: 1px solid var(--bm2-border);
     background: var(--bm2-bg-input);
     color: var(--bm2-text-main);
-    font-size: 0.86rem;
+    font-size: 0.84rem;
     font-weight: 700;
     cursor: pointer;
     display: inline-flex;
@@ -282,17 +311,9 @@
     justify-content: center;
     gap: 6px;
     text-align: center;
-    transition: all 0.16s ease;
     user-select: none;
     box-sizing: border-box;
-}
-
-.bm2_btn:hover {
-    border-color: var(--bm2-accent);
-}
-
-.bm2_btn:active {
-    transform: scale(0.98);
+    transition: all 0.15s ease;
 }
 
 .bm2_btn_primary {
@@ -303,199 +324,227 @@
 }
 
 .bm2_btn_danger {
-    background: rgba(247, 118, 142, 0.14);
+    background: rgba(247, 118, 142, 0.15);
     color: #ff8ca1;
-    border-color: rgba(247, 118, 142, 0.35);
+    border-color: rgba(247, 118, 142, 0.4);
 }
 
-.bm2_btn_sm {
-    min-height: 36px;
-    padding: 5px 10px;
-    font-size: 0.78rem;
-}
-
-.bm2_row_btns {
+.bm2_btn_row {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
 }
 
-.bm2_row_btns > .bm2_btn {
-    flex: 1 1 135px;
+.bm2_btn_row > .bm2_btn {
+    flex: 1 1 130px;
 }
 
-.bm2_toggle_row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    font-size: 0.88rem;
+.bm2_icon_btn,
+.bm2_icon_sm_btn {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    min-height: 32px;
+    border-radius: 8px;
+    border: 1px solid var(--bm2-border);
+    background: var(--bm2-bg-card);
     color: var(--bm2-text-main);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.82rem;
     cursor: pointer;
-    padding: 4px 0;
-}
-
-.bm2_toggle_row input[type="checkbox"] {
-    width: 20px;
-    height: 20px;
-    accent-color: var(--bm2-accent);
+    padding: 0;
     flex-shrink: 0;
 }
 
 /* --------------------------------------------------------------------------
-   Participants / NPC Chips & Avatars
+   Participants Strip & Fixed 34x34 Avatars (.bm2_node_pill)
    -------------------------------------------------------------------------- */
-.bm2_nodes_list {
+.bm2_nodes_strip {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
 }
 
-.bm2_node_chip {
+.bm2_node_pill {
     display: inline-flex;
     align-items: center;
-    gap: 7px;
-    padding: 5px 10px;
-    border-radius: 999px;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 12px;
     background: var(--bm2-bg-input);
     border: 1px solid var(--bm2-border);
-    font-size: 0.83rem;
-    font-weight: 600;
-    color: var(--bm2-text-main);
+    max-width: 100%;
+    box-sizing: border-box;
 }
 
-.bm2_avatar_thumb {
-    width: 28px;
-    height: 28px;
+.bm2_node_avatar {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    min-height: 34px;
+    max-width: 34px;
+    max-height: 34px;
     border-radius: 50%;
-    object-fit: cover;
-    border: 1.5px solid var(--bm2-accent);
-    flex-shrink: 0;
-}
-
-.bm2_avatar_placeholder {
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
+    overflow: hidden;
     background: var(--bm2-bg-card);
-    border: 1.5px solid var(--bm2-border);
-    color: var(--bm2-accent);
-    display: inline-flex;
+    border: 1.5px solid var(--bm2-accent);
+    display: flex;
     align-items: center;
     justify-content: center;
     font-size: 0.78rem;
     font-weight: 800;
+    color: var(--bm2-accent);
     flex-shrink: 0;
 }
 
-.bm2_chip_btn {
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    border: 1px solid var(--bm2-border);
-    background: var(--bm2-bg-card);
+.bm2_node_avatar img {
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 34px !important;
+    max-height: 34px !important;
+    object-fit: cover !important;
+    display: block;
+}
+
+.bm2_node_info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.bm2_node_name {
+    font-size: 0.85rem;
+    font-weight: 700;
     color: var(--bm2-text-main);
-    display: inline-flex;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 130px;
+}
+
+.bm2_node_role_tag {
+    font-size: 0.7rem;
+    color: var(--bm2-text-muted);
+}
+
+.bm2_node_actions {
+    display: flex;
     align-items: center;
-    justify-content: center;
-    font-size: 0.75rem;
-    cursor: pointer;
-    padding: 0;
+    gap: 4px;
 }
 
 /* --------------------------------------------------------------------------
-   Relationship Filter Bar & Grouped Relationship Cards (FIXED VISIBILITY!)
+   New Link Manual Drawer
    -------------------------------------------------------------------------- */
-.bm2_rel_view_toolbar {
-    display: flex;
+.bm2_new_link_drawer {
+    display: none;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
+    padding: 12px;
+    border-radius: 12px;
+    background: var(--bm2-bg-input);
+    border: 1.5px dashed var(--bm2-accent);
 }
 
-.bm2_rel_mode_switch {
+.bm2_new_link_drawer.bm2_open {
+    display: flex;
+}
+
+/* --------------------------------------------------------------------------
+   Filter Pills & Group Mode Switch
+   -------------------------------------------------------------------------- */
+.bm2_group_mode_row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.bm2_mode_switch {
     display: inline-flex;
     background: var(--bm2-bg-input);
     border: 1px solid var(--bm2-border);
-    border-radius: 11px;
+    border-radius: 10px;
     padding: 3px;
     gap: 4px;
-    align-self: flex-start;
 }
 
-.bm2_rel_mode_btn {
-    min-height: 36px;
-    padding: 6px 12px;
+.bm2_mode_btn {
+    min-height: 34px;
+    padding: 5px 10px;
     border-radius: 8px;
-    border: none;
+    border: 1px solid transparent;
     background: transparent;
     color: var(--bm2-text-muted);
-    font-size: 0.8rem;
+    font-size: 0.78rem;
     font-weight: 700;
     cursor: pointer;
 }
 
-.bm2_rel_mode_btn.bm2_active {
+.bm2_mode_btn.bm2_active {
     background: var(--bm2-bg-card);
     color: var(--bm2-accent);
-    border: 1px solid var(--bm2-accent);
+    border-color: var(--bm2-accent);
 }
 
-.bm2_char_filter_bar {
+.bm2_filter_bar {
     display: flex;
     align-items: center;
-    gap: 7px;
+    gap: 6px;
     overflow-x: auto;
-    padding-bottom: 6px;
+    padding: 4px 0 6px 0;
     -webkit-overflow-scrolling: touch;
 }
 
-.bm2_char_filter_pill {
-    min-height: 38px;
-    padding: 6px 14px;
+.bm2_filter_chip {
+    min-height: 36px;
+    padding: 6px 13px;
     border-radius: 999px;
     border: 1px solid var(--bm2-border);
     background: var(--bm2-bg-input);
     color: var(--bm2-text-main);
-    font-size: 0.82rem;
+    font-size: 0.8rem;
     font-weight: 700;
     white-space: nowrap;
     cursor: pointer;
     flex-shrink: 0;
-    transition: all 0.15s ease;
 }
 
-.bm2_char_filter_pill.bm2_active {
+.bm2_filter_chip.bm2_active {
     background: linear-gradient(135deg, var(--bm2-accent), var(--bm2-accent-2));
     color: #0b0d14;
     border-color: transparent;
     font-weight: 800;
 }
 
-/* Главный контейнер списка всех связей — больше НИКАКОГО сплющивания! */
-.bm2_rel_grouped_container {
+/* --------------------------------------------------------------------------
+   Structured Relationship Directory (NO SQUISHING / FULL HEIGHT!)
+   -------------------------------------------------------------------------- */
+.bm2_directory_box {
     display: flex;
     flex-direction: column;
     gap: 10px;
     width: 100%;
     max-height: none !important;
     overflow: visible !important;
-    padding-right: 0;
 }
 
-.bm2_rel_group_card {
+.bm2_dir_section {
     background: var(--bm2-bg-input);
     border: 1.5px solid var(--bm2-border);
-    border-radius: 13px;
+    border-radius: 12px;
     overflow: visible !important;
     flex-shrink: 0 !important;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
 }
 
-.bm2_rel_group_header {
-    padding: 10px 13px;
-    font-size: 0.88rem;
+.bm2_dir_sec_header {
+    padding: 9px 12px;
+    font-size: 0.85rem;
     font-weight: 800;
     color: var(--bm2-accent);
     background: rgba(255, 255, 255, 0.04);
@@ -504,12 +553,10 @@
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    min-height: 40px;
     flex-shrink: 0;
-    box-sizing: border-box;
 }
 
-.bm2_rel_group_items {
+.bm2_dir_items {
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -517,10 +564,9 @@
     flex-shrink: 0;
 }
 
-.bm2_rel_item_btn {
-    width: 100%;
-    min-height: 52px;
-    padding: 10px 12px;
+.bm2_dir_item {
+    min-height: 48px;
+    padding: 9px 11px;
     border-radius: 10px;
     border: 1px solid rgba(255, 255, 255, 0.07);
     background: var(--bm2-bg-card);
@@ -530,57 +576,49 @@
     justify-content: space-between;
     gap: 10px;
     cursor: pointer;
-    text-align: left;
-    transition: all 0.15s ease;
     flex-shrink: 0 !important;
-    box-sizing: border-box;
+    transition: all 0.15s ease;
 }
 
-.bm2_rel_item_btn:hover {
+.bm2_dir_item:hover {
     border-color: var(--bm2-accent);
 }
 
-.bm2_rel_item_btn.bm2_active {
+.bm2_dir_item.bm2_active {
     background: linear-gradient(135deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.03));
     border: 1.5px solid var(--bm2-accent);
     box-shadow: 0 0 12px var(--bm2-glow);
 }
 
-.bm2_rel_item_left {
+.bm2_dir_pair {
     display: flex;
     flex-direction: column;
-    gap: 5px;
+    gap: 4px;
     min-width: 0;
     flex: 1;
+    font-size: 0.9rem;
+    font-weight: 700;
 }
 
-.bm2_rel_item_names {
-    font-size: 0.93rem;
-    font-weight: 800;
-    color: var(--bm2-text-main);
-    line-height: 1.3;
-    word-break: break-word;
-}
-
-.bm2_rel_item_role_tag {
+.bm2_dir_role_badge {
     display: inline-flex;
     align-items: center;
     align-self: flex-start;
-    padding: 3px 9px;
+    padding: 2px 8px;
     border-radius: 999px;
-    font-size: 0.76rem;
+    border: 1px solid var(--bm2-border);
+    font-size: 0.74rem;
     font-weight: 700;
-    line-height: 1.25;
     background: var(--bm2-bg-input);
 }
 
-.bm2_rel_item_score {
-    font-size: 0.9rem;
+.bm2_dir_sat {
+    font-size: 0.88rem;
     font-weight: 800;
     white-space: nowrap;
     flex-shrink: 0;
-    padding: 4px 8px;
-    border-radius: 8px;
+    padding: 3px 7px;
+    border-radius: 7px;
     background: rgba(0, 0, 0, 0.25);
 }
 
@@ -588,34 +626,67 @@
    Bipolar Relationship Meter (-100% ... 0% ... +100%)
    -------------------------------------------------------------------------- */
 .bm2_meter_wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+.bm2_meter_top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+
+.bm2_meter_bipolar_bar {
     position: relative;
-    height: 16px;
+    height: 14px;
     border-radius: 999px;
     background: var(--bm2-bg-input);
     border: 1px solid var(--bm2-border);
     overflow: hidden;
-    margin: 4px 0;
 }
 
-.bm2_meter_zero_line {
+.bm2_meter_zero_tick {
     position: absolute;
     left: 50%;
     top: 0;
     bottom: 0;
     width: 2px;
     background: var(--bm2-text-main);
-    opacity: 0.55;
+    opacity: 0.6;
     z-index: 2;
 }
 
-.bm2_meter_fill {
+.bm2_meter_fill_neg {
     position: absolute;
+    right: 50%;
     top: 0;
     bottom: 0;
-    transition: width 0.25s ease, left 0.25s ease;
+    background: linear-gradient(90deg, #f7768e, #ff9e64);
+    transition: width 0.2s ease;
+}
+
+.bm2_meter_fill_pos {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    background: linear-gradient(90deg, #7aa2f7, #9ece6a);
+    transition: width 0.2s ease;
+}
+
+.bm2_meter_controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
 
 input[type="range"].bm2_range {
+    flex: 1;
     width: 100%;
     height: 32px;
     accent-color: var(--bm2-accent);
@@ -623,9 +694,38 @@ input[type="range"].bm2_range {
 }
 
 /* --------------------------------------------------------------------------
-   Obsidian Interactive Canvas Graph
+   Memories List
    -------------------------------------------------------------------------- */
-.bm2_canvas_container {
+.bm2_memory_list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.bm2_memory_item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: var(--bm2-bg-input);
+    border: 1px solid var(--bm2-border);
+    font-size: 0.84rem;
+}
+
+.bm2_memory_date {
+    display: block;
+    font-size: 0.74rem;
+    font-weight: 700;
+    color: var(--bm2-accent);
+    margin-bottom: 2px;
+}
+
+/* --------------------------------------------------------------------------
+   Obsidian Relationship Graph Canvas
+   -------------------------------------------------------------------------- */
+.bm2_graph_container {
     position: relative;
     width: 100%;
     height: 430px;
@@ -644,101 +744,98 @@ input[type="range"].bm2_range {
     touch-action: none;
 }
 
-.bm2_canvas_overlay_top {
+.bm2_graph_toolbar {
     position: absolute;
-    top: 10px;
-    left: 10px;
+    bottom: 10px;
     right: 10px;
+    display: flex;
+    gap: 6px;
+    z-index: 3;
+}
+
+.bm2_graph_tool_btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    border: 1px solid var(--bm2-border);
+    background: rgba(14, 18, 34, 0.88);
+    color: var(--bm2-text-main);
+    font-size: 1.05rem;
+    font-weight: 800;
+    cursor: pointer;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 6px;
-    pointer-events: none;
-    z-index: 3;
+    justify-content: center;
 }
 
-.bm2_canvas_overlay_top .bm2_btn {
-    pointer-events: auto;
-    background: rgba(15, 17, 26, 0.84);
-    backdrop-filter: blur(6px);
-}
-
-.bm2_canvas_controls {
-    position: absolute;
-    bottom: 10px;
-    right: 10px;
+.bm2_graph_legend {
     display: flex;
-    gap: 6px;
-    z-index: 3;
-}
-
-.bm2_canvas_controls .bm2_btn {
-    width: 42px;
-    height: 42px;
-    padding: 0;
-    font-size: 1.1rem;
-    background: rgba(15, 17, 26, 0.85);
-}
-
-.bm2_canvas_hint {
-    position: absolute;
-    bottom: 10px;
-    left: 10px;
-    font-size: 0.74rem;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding-top: 4px;
+    font-size: 0.76rem;
     color: var(--bm2-text-muted);
-    background: rgba(15, 17, 26, 0.78);
-    padding: 4px 9px;
-    border-radius: 8px;
-    pointer-events: none;
+}
+
+.bm2_legend_item {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.bm2_legend_dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+    box-shadow: 0 0 6px currentColor;
 }
 
 /* --------------------------------------------------------------------------
-   Style Genres, Sliders & Themes Grid
+   Style Tab: Genre Tags & Sliders
    -------------------------------------------------------------------------- */
-.bm2_genre_grid {
+.bm2_genre_tags_wrap {
     display: flex;
     flex-wrap: wrap;
-    gap: 7px;
+    gap: 6px;
 }
 
 .bm2_genre_chip {
-    min-height: 38px;
-    padding: 6px 12px;
-    border-radius: 999px;
-    border: 1px solid var(--bm2-border);
-    background: var(--bm2-bg-input);
-    color: var(--bm2-text-main);
-    font-size: 0.81rem;
-    font-weight: 700;
-    cursor: pointer;
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    user-select: none;
-    transition: all 0.15s ease;
-}
-
-.bm2_genre_chip.bm2_selected {
+    padding: 5px 11px;
+    border-radius: 999px;
     background: linear-gradient(135deg, var(--bm2-accent), var(--bm2-accent-2));
     color: #0b0d14;
-    border-color: transparent;
+    font-size: 0.8rem;
     font-weight: 800;
 }
 
-.bm2_genre_del {
+.bm2_remove_genre_btn {
+    border: none;
+    background: rgba(0, 0, 0, 0.2);
+    color: #0b0d14;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    font-size: 0.72rem;
     font-weight: 900;
-    padding: 0 4px;
-    opacity: 0.75;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
 }
 
-.bm2_slider_block {
+.bm2_slider_row {
     background: var(--bm2-bg-input);
     border: 1px solid var(--bm2-border);
     border-radius: 11px;
     padding: 10px 12px;
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 4px;
 }
 
 .bm2_slider_head {
@@ -755,44 +852,63 @@ input[type="range"].bm2_range {
     font-weight: 800;
 }
 
-.bm2_theme_grid {
+/* --------------------------------------------------------------------------
+   Themes Gallery & Live Prompt Preview
+   -------------------------------------------------------------------------- */
+.bm2_theme_gallery {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
     gap: 8px;
 }
 
 .bm2_theme_card {
-    min-height: 48px;
-    padding: 9px 11px;
-    border-radius: 11px;
+    padding: 10px;
+    border-radius: 12px;
     border: 1.5px solid var(--bm2-border);
-    background: var(--bm2-bg-input);
-    color: var(--bm2-text-main);
-    display: flex;
-    align-items: center;
-    gap: 9px;
     cursor: pointer;
-    font-size: 0.83rem;
-    font-weight: 700;
-    transition: all 0.16s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    transition: all 0.15s ease;
 }
 
-.bm2_theme_card.bm2_active {
-    border-color: var(--bm2-accent);
+.bm2_theme_card.bm2_theme_active {
+    border: 2px solid var(--bm2-accent);
     box-shadow: 0 0 14px var(--bm2-glow);
 }
 
-.bm2_theme_swatch {
-    width: 22px;
-    height: 22px;
+.bm2_theme_card_top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    font-size: 0.84rem;
+    font-weight: 800;
+}
+
+.bm2_theme_card_desc {
+    font-size: 0.73rem;
+    line-height: 1.3;
+}
+
+.bm2_theme_swatches {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 2px;
+}
+
+.bm2_swatch_dot {
+    width: 16px;
+    height: 16px;
     border-radius: 50%;
-    flex-shrink: 0;
     border: 1px solid rgba(255, 255, 255, 0.35);
+    display: inline-block;
 }
 
 .bm2_prompt_preview {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    font-size: 0.77rem;
+    font-size: 0.76rem;
     line-height: 1.45;
     background: var(--bm2-bg-input);
     border: 1px solid var(--bm2-border);
