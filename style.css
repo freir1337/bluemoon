@@ -1,5 +1,6 @@
 /* ==========================================================================
-   BlueMoon v2.4 — Mobile-First Stylesheet & Rich Decorative Theme Engine
+   BlueMoon v2.5 — Mobile-First Stylesheet, Structured Relationship Directory
+   & Rich Decorative Theme Engine
    ========================================================================== */
 
 :root {
@@ -268,7 +269,6 @@
     overflow: hidden;
 }
 
-/* Subtle decorative corner glow on cards */
 .bm2_card::after {
     content: '';
     position: absolute;
@@ -381,6 +381,174 @@
     align-items: center;
     justify-content: center;
     font-size: 0.78rem;
+}
+
+/* ==========================================================================
+   Structured Relationship Directory (Filter by Character / Group by Section)
+   ========================================================================== */
+
+.bm2_filter_bar {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+}
+
+.bm2_filter_chip {
+    padding: 5px 11px;
+    border-radius: 999px;
+    border: 1px solid var(--bm2-border);
+    background: var(--bm2-bg-input);
+    color: var(--bm2-text-muted);
+    font-size: 0.76rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: all 0.15s ease;
+}
+
+.bm2_filter_chip.bm2_active {
+    background: linear-gradient(135deg, var(--bm2-accent), var(--bm2-accent-2));
+    color: #090b12;
+    border-color: transparent;
+    font-weight: 700;
+    box-shadow: 0 2px 8px var(--bm2-glow);
+}
+
+.bm2_group_mode_row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.bm2_mode_switch {
+    display: inline-flex;
+    background: var(--bm2-bg-input);
+    border: 1px solid var(--bm2-border);
+    border-radius: 9px;
+    padding: 2px;
+    gap: 2px;
+}
+
+.bm2_mode_btn {
+    border: none;
+    background: transparent;
+    color: var(--bm2-text-muted);
+    font-size: 0.74rem;
+    font-weight: 600;
+    padding: 4px 9px;
+    border-radius: 7px;
+    cursor: pointer;
+}
+
+.bm2_mode_btn.bm2_active {
+    background: var(--bm2-glow);
+    color: var(--bm2-text-main);
+    border: 1px solid var(--bm2-accent);
+}
+
+.bm2_directory_box {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 235px;
+    overflow-y: auto;
+    padding-right: 2px;
+    -webkit-overflow-scrolling: touch;
+}
+
+.bm2_dir_section {
+    background: rgba(0, 0, 0, 0.18);
+    border: 1px solid var(--bm2-border);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.bm2_dir_sec_header {
+    padding: 6px 10px;
+    background: rgba(255, 255, 255, 0.03);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: var(--bm2-accent);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.bm2_dir_items {
+    display: flex;
+    flex-direction: column;
+}
+
+.bm2_dir_item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    cursor: pointer;
+    transition: background 0.12s ease;
+    font-size: 0.82rem;
+}
+
+.bm2_dir_item:last-child {
+    border-bottom: none;
+}
+
+.bm2_dir_item:hover,
+.bm2_dir_item:active {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.bm2_dir_item.bm2_active {
+    background: var(--bm2-glow);
+    border-left: 3px solid var(--bm2-accent);
+}
+
+.bm2_dir_pair {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+    color: var(--bm2-text-main);
+    min-width: 0;
+    flex-wrap: wrap;
+}
+
+.bm2_dir_role_badge {
+    font-size: 0.72rem;
+    padding: 2px 7px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    white-space: nowrap;
+}
+
+.bm2_dir_sat {
+    font-size: 0.78rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+/* Quick New Link Modal Box inside Card */
+.bm2_new_link_drawer {
+    padding: 10px;
+    border-radius: 10px;
+    background: rgba(122, 162, 247, 0.09);
+    border: 1px dashed var(--bm2-accent);
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.bm2_new_link_drawer.bm2_open {
+    display: flex;
 }
 
 /* Form Controls */
