@@ -1,62 +1,59 @@
-<div id="bm2_settings_container" class="bm2_settings_wrapper">
+<div class="bm2_ext_settings">
     <div class="inline-drawer">
         <div class="inline-drawer-toggle inline-drawer-header">
-            <b>🌙 BlueMoon v2.1 (Связи, Древо и Стиль)</b>
+            <b>🌙 BlueMoon: Relationships & Style v2.3</b>
             <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
         </div>
-        <div class="inline-drawer-content bm2_drawer_body">
-            <p class="bm2_hint">
-                Трекер отношений (Бот + Персона + NPC), интерактивное древо связей с фото, кастомные ползунки стиля и темы. Открывается через <b>Волшебную палочку (🪄)</b> возле поля ввода чата.
-            </p>
+        <div class="inline-drawer-content">
+            <div class="bm2_settings_block">
+                <p class="bm2_settings_hint">
+                    Управление сетью отношений (Бот, Персона, NPC), интерактивным древом связей (Obsidian Graph), жанрами и ползунками стиля. Панель открывается через меню <b>Волшебной палочки (🪄)</b> возле поля ввода чата или кнопкой ниже.
+                </p>
 
-            <label class="checkbox_label" for="bm2_master_enabled">
-                <input id="bm2_master_enabled" type="checkbox" />
-                <span>Включить расширение BlueMoon</span>
-            </label>
+                <label class="checkbox_label" for="bm2_master_enabled">
+                    <input type="checkbox" id="bm2_master_enabled" />
+                    <span>Включить BlueMoon (Мастер-переключатель)</span>
+                </label>
 
-            <label class="checkbox_label" for="bm2_rel_enabled">
-                <input id="bm2_rel_enabled" type="checkbox" />
-                <span>Отправлять ИИ сеть отношений (Бот, Персона, NPC)</span>
-            </label>
+                <label class="checkbox_label" for="bm2_rel_enabled">
+                    <input type="checkbox" id="bm2_rel_enabled" />
+                    <span>Строго вшивать сеть отношений и NPC в промпт ИИ</span>
+                </label>
 
-            <label class="checkbox_label" for="bm2_rel_auto_analyze">
-                <input id="bm2_rel_auto_analyze" type="checkbox" />
-                <span>Авто-изменение % отношений после ответов бота</span>
-            </label>
+                <label class="checkbox_label" for="bm2_rel_auto_analyze">
+                    <input type="checkbox" id="bm2_rel_auto_analyze" />
+                    <span>Авто-сканирование всех связей (Персонажи + NPC) после каждого ответа</span>
+                </label>
 
-            <label class="checkbox_label" for="bm2_isolate_per_chat">
-                <input id="bm2_isolate_per_chat" type="checkbox" />
-                <span>Отдельное древо для каждого нового чата (даже у одного бота)</span>
-            </label>
+                <label class="checkbox_label" for="bm2_isolate_per_chat">
+                    <input type="checkbox" id="bm2_isolate_per_chat" />
+                    <span>Отдельная копия связей для каждой ветки чата (с авто-наследованием NPC при создании ветки)</span>
+                </label>
 
-            <label class="checkbox_label" for="bm2_style_enabled">
-                <input id="bm2_style_enabled" type="checkbox" />
-                <span>Включить ползунки стиля и подачу текста</span>
-            </label>
+                <label class="checkbox_label" for="bm2_style_enabled">
+                    <input type="checkbox" id="bm2_style_enabled" />
+                    <span>Строго вшивать жанры, автора и силу ползунков в промпт ИИ</span>
+                </label>
 
-            <hr class="bm2_divider" />
+                <hr />
 
-            <div class="bm2_field_group">
-                <label for="bm2_connection_profile">Профиль API (для анализа % и ИИ-построения древа):</label>
-                <div class="bm2_row">
-                    <select id="bm2_connection_profile" class="text_pole bm2_select">
-                        <option value="">Текущее подключение (Main API)</option>
+                <div class="bm2_field_row">
+                    <label for="bm2_connection_profile">Профиль подключения для ИИ-анализа и Древа:</label>
+                    <select id="bm2_connection_profile" class="text_pole">
+                        <option value="">Текущий активный API чата</option>
                     </select>
-                    <button id="bm2_refresh_profiles" class="menu_button bm2_icon_btn" type="button" title="Обновить список профилей">
-                        <i class="fa-solid fa-rotate"></i>
+                </div>
+
+                <div class="bm2_field_row">
+                    <label for="bm2_injection_depth">Глубина инъекции промпта (Depth — рекомендуем 1):</label>
+                    <input type="number" id="bm2_injection_depth" class="text_pole" min="0" max="10" step="1" value="1" />
+                </div>
+
+                <div class="bm2_settings_actions">
+                    <button id="bm2_open_hub_btn" class="menu_button interactable" type="button">
+                        🌙 Открыть панель BlueMoon
                     </button>
                 </div>
-            </div>
-
-            <div class="bm2_field_group">
-                <label for="bm2_injection_depth">Глубина вставки промпта (Depth):</label>
-                <input id="bm2_injection_depth" type="number" class="text_pole" min="0" max="20" step="1" value="1" />
-            </div>
-
-            <div class="bm2_actions_stack">
-                <button id="bm2_open_panel_btn" class="menu_button bm2_primary_btn" type="button">
-                    <i class="fa-solid fa-moon"></i> Открыть BlueMoon
-                </button>
             </div>
         </div>
     </div>
