@@ -15,6 +15,16 @@ const MODULE_NAME = 'bluemoon_v2';
 const PROMPT_KEY_STYLE = 'bluemoon_v2_style_prompt';
 const PROMPT_KEY_REL = 'bluemoon_v2_rel_prompt';
 
+// Fallback clone helper in case structuredClone fails on any object
+function safeClone(obj) {
+    if (obj === undefined || obj === null) return obj;
+    try {
+        return JSON.parse(JSON.stringify(obj));
+    } catch (_) {
+        return obj;
+    }
+}
+
 // Categories for structured grouping of roles
 const ROLE_CATEGORIES = {
     romance: { id: 'romance', label: '💘 Романтика и симпатия' },
@@ -274,19 +284,24 @@ let selectedRelId = null;
 let graphDragNodeId = null;
 let graphCanvasResizeObserver = null;
 let isAnalyzingRel = false;
+let isInitialized = false;
+let modalEventsBound = false;
 
 function getSettings() {
     if (!extension_settings[MODULE_NAME]) {
-        extension_settings[MODULE_NAME] = structuredClone(DEFAULT_SETTINGS);
+        extension_settings[MODULE_NAME] = safeClone(DEFAULT_SETTINGS);
     }
     const s = extension_settings[MODULE_NAME];
     for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) {
         if (s[k] === undefined) {
-            s[k] = structuredClone(v);
+            s[k] = safeClone(v);
         }
     }
+    if (!s.styleConfig || typeof s.styleConfig !== 'object') {
+        s.styleConfig = safeClone(DEFAULT_SETTINGS.styleConfig);
+    }
     if (!s.styleConfig.sliders) {
-        s.styleConfig.sliders = structuredClone(DEFAULT_SETTINGS.styleConfig.sliders);
+        s.styleConfig.sliders = safeClone(DEFAULT_SETTINGS.styleConfig.sliders);
     }
     if (!Array.isArray(s.styleConfig.activeTags)) {
         s.styleConfig.activeTags = ['slowburn'];
@@ -332,12 +347,14 @@ function getRoleInfo(roleId) {
 
 function getMutualityInfo(mutualityId, nameA = 'Персонаж А', nameB = 'Персонаж Б') {
     const raw = CRUSH_MUTUALITY.find(m => m.id === mutualityId) || CRUSH_MUTUALITY[0];
+    const safeA = String(nameA || 'Персонаж А');
+    const safeB = String(nameB || 'Персонаж Б');
     return {
         id: raw.id,
-        label: raw.label.replace(/\{A\}/g, nameA).replace(/\{B\}/g, nameB),
-        shortTag: (raw.shortTag || '').replace(/\{A\}/g, nameA).replace(/\{B\}/g, nameB),
-        prompt: raw.prompt.replace(/\{A\}/g, nameA).replace(/\{B\}/g, nameB),
-        secrecyRule: (raw.secrecyRule || '').replace(/\{A\}/g, nameA).replace(/\{B\}/g, nameB),
+        label: raw.label.replace(/\{A\}/g, safeA).replace(/\{B\}/g, safeB),
+        shortTag: (raw.shortTag || '').replace(/\{A\}/g, safeA).replace(/\{B\}/g, safeB),
+        prompt: raw.prompt.replace(/\{A\}/g, safeA).replace(/\{B\}/g, safeB),
+        secrecyRule: (raw.secrecyRule || '').replace(/\{A\}/g, safeA).replace(/\{B\}/g, safeB),
     };
 }
 
@@ -412,7 +429,7 @@ function getActiveProfile() {
     if (!s.characterProfiles[key]) {
         const donor = findBestDonorProfileForBaseKey(s, baseKey);
         if (donor) {
-            s.characterProfiles[key] = structuredClone(donor);
+            s.characterProfiles[key] = safeClone(donor);
         } else {
             s.characterProfiles[key] = {
                 storyDate: 'День 1',
@@ -431,7 +448,7 @@ function getActiveProfile() {
             const donorNpcCount = (donor.nodes || []).filter(n => n.type === 'npc').length;
             const donorRelCount = (donor.relationships || []).length;
             if (donorNpcCount > currentNpcCount || donorRelCount > currentRelCount) {
-                s.characterProfiles[key] = structuredClone(donor);
+                s.characterProfiles[key] = safeClone(donor);
             }
         }
     }
@@ -553,7 +570,6 @@ function buildRelationshipsPrompt() {
         }
         lines.push(line);
 
-        // Build explicit third-party & target epistemic firewall rules for secret/unrequited love
         const thirdParties = allNames.filter(n => n !== nameA && n !== nameB);
         const thirdPartyList = thirdParties.length > 0
             ? `(${thirdParties.join(', ')} and any other NPCs)`
@@ -684,29 +700,33 @@ function buildStylePrompt() {
 }
 
 function updateExtensionPrompts() {
-    const s = getSettings();
-    const depth = Number(s.injectionDepth) >= 0 ? Number(s.injectionDepth) : 1;
+    try {
+        const s = getSettings();
+        const depth = Number(s.injectionDepth) >= 0 ? Number(s.injectionDepth) : 1;
 
-    const relPrompt = buildRelationshipsPrompt();
-    const stylePrompt = buildStylePrompt();
+        const relPrompt = buildRelationshipsPrompt();
+        const stylePrompt = buildStylePrompt();
 
-    setExtensionPrompt(
-        PROMPT_KEY_REL,
-        relPrompt,
-        extension_prompt_types.IN_CHAT,
-        depth,
-        false,
-        0,
-    );
+        setExtensionPrompt(
+            PROMPT_KEY_REL,
+            relPrompt,
+            extension_prompt_types.IN_CHAT,
+            depth,
+            false,
+            0,
+        );
 
-    setExtensionPrompt(
-        PROMPT_KEY_STYLE,
-        stylePrompt,
-        extension_prompt_types.IN_CHAT,
-        depth,
-        false,
-        0,
-    );
+        setExtensionPrompt(
+            PROMPT_KEY_STYLE,
+            stylePrompt,
+            extension_prompt_types.IN_CHAT,
+            depth,
+            false,
+            0,
+        );
+    } catch (err) {
+        console.error(`[${MODULE_NAME}] updateExtensionPrompts error:`, err);
+    }
 }
 
 window.bluemoonGenerateInterceptor = async function (chat, contextSize, abort, type) {
@@ -971,11 +991,11 @@ function exportRelationshipsToJson() {
         const profile = getActiveProfile();
         const charName = getActiveCharacterName().replace(/[^a-zA-Zа-яА-Я0-9_-]/g, '_');
         const payload = {
-            bluemoon_version: '2.5.2',
+            bluemoon_version: '2.5.3',
             exportedAt: new Date().toISOString(),
             characterName: getActiveCharacterName(),
             customRoles: s.customRoles || [],
-            profile: structuredClone(profile),
+            profile: safeClone(profile),
         };
 
         const jsonStr = JSON.stringify(payload, null, 2);
@@ -1026,14 +1046,14 @@ function importRelationshipsFromJson(file) {
             if (replaceAll) {
                 s.characterProfiles[key] = {
                     storyDate: incoming.storyDate || current.storyDate || 'День 1',
-                    nodes: structuredClone(incoming.nodes),
-                    relationships: structuredClone(incoming.relationships),
+                    nodes: safeClone(incoming.nodes),
+                    relationships: safeClone(incoming.relationships),
                 };
             } else {
                 if (incoming.storyDate) current.storyDate = incoming.storyDate;
                 for (const n of incoming.nodes) {
                     if (!current.nodes.some(existing => existing.id === n.id || existing.name === n.name)) {
-                        current.nodes.push(structuredClone(n));
+                        current.nodes.push(safeClone(n));
                     }
                 }
                 for (const r of incoming.relationships) {
@@ -1041,7 +1061,7 @@ function importRelationshipsFromJson(file) {
                         ex => (ex.from === r.from && ex.to === r.to) || (ex.from === r.to && ex.to === r.from),
                     );
                     if (!exists) {
-                        current.relationships.push(structuredClone(r));
+                        current.relationships.push(safeClone(r));
                     }
                 }
             }
@@ -1059,6 +1079,59 @@ function importRelationshipsFromJson(file) {
         }
     };
     reader.readAsText(file);
+}
+
+function buildFallbackSettingsHtml() {
+    return `
+    <div class="bluemoon-v2-settings">
+        <div class="inline-drawer">
+            <div class="inline-drawer-toggle inline-drawer-header">
+                <b>🌙 BlueMoon: Relationships, Graph & Style Engine</b>
+                <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+            </div>
+            <div class="inline-drawer-content">
+                <div class="bm2_settings_block">
+                    <label class="checkbox_label" for="bm2_master_enabled">
+                        <input id="bm2_master_enabled" type="checkbox" />
+                        <span>Включить расширение BlueMoon</span>
+                    </label>
+                    <label class="checkbox_label" for="bm2_rel_enabled">
+                        <input id="bm2_rel_enabled" type="checkbox" />
+                        <span>Инъекция сети отношений и воспоминаний в промпт</span>
+                    </label>
+                    <label class="checkbox_label" for="bm2_rel_auto_analyze">
+                        <input id="bm2_rel_auto_analyze" type="checkbox" />
+                        <span>Авто-анализ всех связей (Персонажи + NPC) после ответа ИИ</span>
+                    </label>
+                    <label class="checkbox_label" for="bm2_isolate_per_chat">
+                        <input id="bm2_isolate_per_chat" type="checkbox" />
+                        <span>Изолировать связи для каждого чата (если выкл — общие для всех веток персонажа)</span>
+                    </label>
+                    <label class="checkbox_label" for="bm2_style_enabled">
+                        <input id="bm2_style_enabled" type="checkbox" />
+                        <span>Строгая инъекция жанра, авторского слога и ползунков стиля</span>
+                    </label>
+                    <hr />
+                    <div class="bm2_settings_row">
+                        <label for="bm2_connection_profile">Профиль подключения для ИИ-анализа связей:</label>
+                        <select id="bm2_connection_profile" class="text_pole">
+                            <option value="">🔄 Текущее активное подключение SillyTavern</option>
+                        </select>
+                    </div>
+                    <div class="bm2_settings_row">
+                        <label for="bm2_injection_depth">Глубина инъекции в чат (Depth):</label>
+                        <input id="bm2_injection_depth" type="number" class="text_pole" min="0" max="20" value="1" />
+                    </div>
+                    <hr />
+                    <div class="bm2_settings_row">
+                        <button id="bm2_open_modal_from_settings" class="menu_button interactable" type="button">
+                            🌙 Открыть студию BlueMoon
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>`;
 }
 
 function buildModalHtml() {
@@ -1938,14 +2011,42 @@ function renderThemesTab() {
     $('#bm2_col_border').val(ct.border);
 }
 
+function ensureModalInDom() {
+    if (!$('#bm2_overlay').length) {
+        $('body').append(buildModalHtml());
+    }
+    if (!modalEventsBound) {
+        bindModalEvents();
+        modalEventsBound = true;
+    }
+}
+
 function openBlueMoonModal() {
-    applyThemeToModal();
-    renderRelationshipsTab();
-    renderStyleTab();
-    renderThemesTab();
-    $('#bm2_overlay').addClass('bm2_visible');
-    if (activeModalTab === 'tab_graph') {
-        setTimeout(() => renderGraphCanvas(), 30);
+    try {
+        ensureModalInDom();
+        applyThemeToModal();
+        try {
+            renderRelationshipsTab();
+        } catch (err) {
+            console.error(`[${MODULE_NAME}] renderRelationshipsTab error:`, err);
+        }
+        try {
+            renderStyleTab();
+        } catch (err) {
+            console.error(`[${MODULE_NAME}] renderStyleTab error:`, err);
+        }
+        try {
+            renderThemesTab();
+        } catch (err) {
+            console.error(`[${MODULE_NAME}] renderThemesTab error:`, err);
+        }
+        $('#bm2_overlay').addClass('bm2_visible');
+        if (activeModalTab === 'tab_graph') {
+            setTimeout(() => renderGraphCanvas(), 30);
+        }
+    } catch (err) {
+        console.error(`[${MODULE_NAME}] openBlueMoonModal fatal error:`, err);
+        toastr.error('Ошибка открытия окна BlueMoon. Проверьте консоль браузера.', 'BlueMoon');
     }
 }
 
@@ -1955,6 +2056,19 @@ function closeBlueMoonModal() {
 
 function bindModalEvents() {
     let uploadTargetNodeId = null;
+
+    // Global delegated handler for Wand Menu Item & Settings Open Button
+    $(document).on('click', '#bm2_wand_menu_item', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        $('#extensionsMenu').hide();
+        openBlueMoonModal();
+    });
+
+    $(document).on('click', '#bm2_open_modal_from_settings', function (e) {
+        e.preventDefault();
+        openBlueMoonModal();
+    });
 
     $(document).on('click', '#bm2_close_btn', closeBlueMoonModal);
     $(document).on('click', '#bm2_overlay', function (e) {
@@ -2532,51 +2646,51 @@ function bindModalEvents() {
 function bindSettingsPanelEvents() {
     const s = getSettings();
 
-    $('#bm2_master_enabled').prop('checked', s.masterEnabled).on('change', function () {
+    $('#bm2_master_enabled').prop('checked', s.masterEnabled).off('change').on('change', function () {
         s.masterEnabled = $(this).is(':checked');
         saveSettingsDebounced();
         updateExtensionPrompts();
     });
 
-    $('#bm2_rel_enabled').prop('checked', s.relEnabled).on('change', function () {
+    $('#bm2_rel_enabled').prop('checked', s.relEnabled).off('change').on('change', function () {
         s.relEnabled = $(this).is(':checked');
         saveSettingsDebounced();
         updateExtensionPrompts();
     });
 
-    $('#bm2_rel_auto_analyze').prop('checked', s.relAutoAnalyze).on('change', function () {
+    $('#bm2_rel_auto_analyze').prop('checked', s.relAutoAnalyze).off('change').on('change', function () {
         s.relAutoAnalyze = $(this).is(':checked');
         saveSettingsDebounced();
     });
 
-    $('#bm2_isolate_per_chat').prop('checked', s.isolatePerChat).on('change', function () {
+    $('#bm2_isolate_per_chat').prop('checked', s.isolatePerChat).off('change').on('change', function () {
         s.isolatePerChat = $(this).is(':checked');
         saveSettingsDebounced();
         updateExtensionPrompts();
     });
 
-    $('#bm2_style_enabled').prop('checked', s.styleEnabled).on('change', function () {
+    $('#bm2_style_enabled').prop('checked', s.styleEnabled).off('change').on('change', function () {
         s.styleEnabled = $(this).is(':checked');
         saveSettingsDebounced();
         updateExtensionPrompts();
     });
 
-    $('#bm2_injection_depth').val(s.injectionDepth).on('change', function () {
+    $('#bm2_injection_depth').val(s.injectionDepth).off('change').on('change', function () {
         s.injectionDepth = Number($(this).val()) || 1;
         saveSettingsDebounced();
         updateExtensionPrompts();
     });
 
     populateConnectionProfiles();
-    $('#bm2_connection_profile').on('change', function () {
+    $('#bm2_connection_profile').off('change').on('change', function () {
         s.connectionProfileId = String($(this).val() || '');
         saveSettingsDebounced();
     });
-
-    $('#bm2_open_modal_from_settings').on('click', openBlueMoonModal);
 }
 
 function injectWandMenuButton() {
+    const extMenu = $('#extensionsMenu');
+    if (!extMenu.length) return;
     if ($('#bm2_wand_menu_item').length) return;
 
     const itemHtml = `
@@ -2585,15 +2699,7 @@ function injectWandMenuButton() {
             <span>BlueMoon: Отношения и Стиль</span>
         </div>
     `;
-
-    const extMenu = $('#extensionsMenu');
-    if (extMenu.length) {
-        extMenu.append(itemHtml);
-        $('#bm2_wand_menu_item').on('click', () => {
-            $('#extensionsMenu').hide();
-            openBlueMoonModal();
-        });
-    }
+    extMenu.append(itemHtml);
 }
 
 function escapeHtml(str) {
@@ -2606,35 +2712,43 @@ function escapeHtml(str) {
 }
 
 async function init() {
+    if (isInitialized) return;
+    isInitialized = true;
+
     try {
         getSettings();
 
-        const settingsHtml = await $.get('/scripts/extensions/third-party/bluemoon/settings.html').catch(async () => {
-            const scripts = document.querySelectorAll('script[src*="index.js"]');
-            for (const sc of scripts) {
-                if (sc.src.includes('bluemoon')) {
-                    const base = sc.src.substring(0, sc.src.lastIndexOf('/'));
-                    return await $.get(`${base}/settings.html`);
-                }
-            }
-            return '';
-        });
+        // 1. Immediately mount modal and bind events (never blocked by network calls)
+        ensureModalInDom();
+        injectWandMenuButton();
 
-        if (settingsHtml) {
-            $('#extensions_settings2').append(settingsHtml);
+        // Keep checking wand menu in case SillyTavern re-renders #extensionsMenu later
+        setInterval(injectWandMenuButton, 2500);
+
+        // 2. Mount settings panel in Extensions tab (with built-in fallback if settings.html fails)
+        if (!$('.bluemoon-v2-settings').length) {
+            let settingsHtml = '';
+            try {
+                const moduleUrl = new URL('./settings.html', import.meta.url).href;
+                settingsHtml = await $.get(moduleUrl);
+            } catch (_) {
+                settingsHtml = buildFallbackSettingsHtml();
+            }
+            if (!settingsHtml || !settingsHtml.trim()) {
+                settingsHtml = buildFallbackSettingsHtml();
+            }
+            const targetContainer = $('#extensions_settings2').length
+                ? $('#extensions_settings2')
+                : $('#extensions_settings');
+            targetContainer.append(settingsHtml);
             bindSettingsPanelEvents();
         }
 
-        if (!$('#bm2_overlay').length) {
-            $('body').append(buildModalHtml());
-            bindModalEvents();
-        }
-
-        injectWandMenuButton();
         updateExtensionPrompts();
 
         eventSource.on(event_types.CHAT_CHANGED, () => {
             selectedRelId = null;
+            injectWandMenuButton();
             updateExtensionPrompts();
             if ($('#bm2_overlay').hasClass('bm2_visible')) {
                 renderRelationshipsTab();
@@ -2648,10 +2762,16 @@ async function init() {
             }, 600);
         });
 
-        console.log(`[${MODULE_NAME}] BlueMoon v2.5.2 initialized successfully.`);
+        console.log(`[${MODULE_NAME}] BlueMoon v2.5.3 initialized successfully.`);
     } catch (err) {
         console.error(`[${MODULE_NAME}] Initialization failed:`, err);
     }
 }
 
-eventSource.on(event_types.APP_READY, init);
+// Run immediately on jQuery ready AND hook APP_READY as backup
+jQuery(() => {
+    init();
+});
+if (eventSource && event_types?.APP_READY) {
+    eventSource.on(event_types.APP_READY, init);
+        }
