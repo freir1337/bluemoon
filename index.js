@@ -1,781 +1,629 @@
-import {
-    extension_settings,
-    getContext,
-} from '../../../extensions.js';
+/**
+ * BlueMoon v2.5.4: Relationships, Obsidian Graph & Narrative Style Engine
+ * - Direct click/touch binding on #bm2_wand_menu_item so other extensions cannot block event bubbling
+ * - Instant modal display with inline !important before any data rendering
+ * - Defensive sanitization for existing saved profiles & settings
+ * - Always-available romantic/crush mutuality & secrecy subtypes across all 25+ relationship statuses
+ * - Epistemic Isolation & Anti-Omniscience prompt firewall for secret/unrequited feelings
+ */
 
-import {
-    saveSettingsDebounced,
-    eventSource,
-    event_types,
-    setExtensionPrompt,
-    extension_prompt_types,
-} from '../../../../script.js';
+const MODULE_NAME = 'bluemoon';
+const PROMPT_KEY_REL = 'bluemoon_relationships_prompt';
+const PROMPT_KEY_STYLE = 'bluemoon_style_prompt';
 
-const MODULE_NAME = 'bluemoon_v2';
-const PROMPT_KEY_STYLE = 'bluemoon_v2_style_prompt';
-const PROMPT_KEY_REL = 'bluemoon_v2_rel_prompt';
-
-// Fallback clone helper in case structuredClone fails on any object
 function safeClone(obj) {
-    if (obj === undefined || obj === null) return obj;
-    try {
-        return JSON.parse(JSON.stringify(obj));
-    } catch (_) {
-        return obj;
-    }
+    return JSON.parse(JSON.stringify(obj));
 }
 
-// Categories for structured grouping of roles
-const ROLE_CATEGORIES = {
-    romance: { id: 'romance', label: '💘 Романтика и симпатия' },
-    family: { id: 'family', label: '🧬 Семья и родство' },
-    friendship: { id: 'friendship', label: '🤝 Дружба и доверие' },
-    social: { id: 'social', label: '🏢 Учёба, работа и быт' },
-    conflict: { id: 'conflict', label: '⚔️ Конфликт и драма' },
-    other: { id: 'other', label: '🎭 Прочее и свои статусы' },
-};
-
-// 25 Built-in Relationship Statuses
-const BUILTIN_RELATIONSHIP_ROLES = [
-    // Romance
-    { id: 'crush', category: 'romance', label: '💘 Симпатия / Влюблённость', shortLabel: '💘 Симпатия', color: '#ff6b9d', hasMutuality: true, defaultMutuality: 'mutual_open', prompt: 'Romantic attraction / crush' },
-    { id: 'dating', category: 'romance', label: '👩‍❤️‍👨 Встречаются (Пара)', shortLabel: '👩‍❤️‍👨 Пара', color: '#ff477e', hasMutuality: true, defaultMutuality: 'mutual_open', prompt: 'Officially dating as a romantic couple' },
-    { id: 'secret_lovers', category: 'romance', label: '❤️‍🔥 Тайные любовники', shortLabel: '❤️‍🔥 Тайные', color: '#e056fd', hasMutuality: true, defaultMutuality: 'secret_relationship', prompt: 'Secret lovers hiding their romance from everyone else' },
-    { id: 'fwb', category: 'romance', label: '💋 Секс по дружбе (FWB)', shortLabel: '💋 FWB', color: '#f78fb3', hasMutuality: true, defaultMutuality: 'secret_relationship', prompt: 'Friends with benefits (physical intimacy without official romantic commitment)' },
-    { id: 'married', category: 'romance', label: '💍 В браке (Супруги)', shortLabel: '💍 Брак', color: '#ffd166', hasMutuality: true, defaultMutuality: 'mutual_open', prompt: 'Married spouses' },
-    { id: 'exes', category: 'romance', label: '💔 Бывшие партнёры', shortLabel: '💔 Бывшие', color: '#9d8189', hasMutuality: true, defaultMutuality: 'residual_chemistry', prompt: 'Ex-partners with shared past history' },
-
-    // Friendship
-    { id: 'acquaintances', category: 'friendship', label: '👋 Знакомые', shortLabel: '👋 Знакомые', color: '#8d99ae', hasMutuality: false, defaultMutuality: 'none', prompt: 'Casual acquaintances' },
-    { id: 'friends', category: 'friendship', label: '🤝 Друзья', shortLabel: '🤝 Друзья', color: '#4ea8de', hasMutuality: false, defaultMutuality: 'none', prompt: 'Friends' },
-    { id: 'best_friends', category: 'friendship', label: '🌟 Лучшие друзья', shortLabel: '🌟 Лучшие др.', color: '#38b000', hasMutuality: false, defaultMutuality: 'none', prompt: 'Best friends with deep trust and loyalty' },
-    { id: 'childhood_friends', category: 'friendship', label: '🧸 Друзья детства', shortLabel: '🧸 Др. детства', color: '#72efdd', hasMutuality: false, defaultMutuality: 'none', prompt: 'Childhood friends who grew up together' },
-    { id: 'protector_ward', category: 'friendship', label: '🛡️ Защитник и подопечный', shortLabel: '🛡️ Защитник', color: '#48cae4', hasMutuality: false, defaultMutuality: 'none', prompt: 'Protector / bodyguard and the person they protect' },
-
-    // Family
-    { id: 'siblings', category: 'family', label: '🧬 Брат / Сестра', shortLabel: '🧬 Брат/Сестра', color: '#a78bfa', hasMutuality: false, defaultMutuality: 'none', prompt: 'Siblings (brother/sister)' },
-    { id: 'stepsiblings', category: 'family', label: '🔗 Сводные брат / сестра', shortLabel: '🔗 Сводные', color: '#c084fc', hasMutuality: false, defaultMutuality: 'none', prompt: 'Step-siblings living or raised in a blended family' },
-    { id: 'parent_child', category: 'family', label: '🏡 Родитель ↔ Ребёнок', shortLabel: '🏡 Родитель', color: '#c77dff', hasMutuality: false, defaultMutuality: 'none', prompt: 'Parent and child family dynamic' },
-    { id: 'relatives', category: 'family', label: '🌳 Родственники', shortLabel: '🌳 Родня', color: '#b5838d', hasMutuality: false, defaultMutuality: 'none', prompt: 'Extended family members / relatives' },
-
-    // Social / Work / Study
-    { id: 'strangers', category: 'social', label: '👤 Незнакомцы', shortLabel: '👤 Незнакомцы', color: '#7a889b', hasMutuality: false, defaultMutuality: 'none', prompt: 'Strangers who barely know each other' },
-    { id: 'roommates', category: 'social', label: '🏠 Соседи по комнате / дому', shortLabel: '🏠 Соседи', color: '#64dfdf', hasMutuality: false, defaultMutuality: 'none', prompt: 'Roommates or close neighbors sharing living space' },
-    { id: 'classmates', category: 'social', label: '🎒 Одноклассники / Однокурсники', shortLabel: '🎒 Учёба', color: '#56cfe1', hasMutuality: false, defaultMutuality: 'none', prompt: 'Classmates or university peers studying together' },
-    { id: 'colleagues', category: 'social', label: '💼 Коллеги / Напарники', shortLabel: '💼 Коллеги', color: '#74c69d', hasMutuality: false, defaultMutuality: 'none', prompt: 'Work colleagues or teammates' },
-    { id: 'boss_subordinate', category: 'social', label: '👔 Босс → Подчинённый', shortLabel: '👔 Босс/Подч.', color: '#f3a683', hasMutuality: false, defaultMutuality: 'none', prompt: 'Authority dynamic: first character is Boss/Leader, second is Subordinate' },
-    { id: 'mentor_student', category: 'social', label: '🎓 Учитель → Ученик', shortLabel: '🎓 Наставник', color: '#f8a5c2', hasMutuality: false, defaultMutuality: 'none', prompt: 'Mentor / teacher (first character) and student / apprentice (second character)' },
-    { id: 'idol_fan', category: 'social', label: '✨ Кумир → Фанат', shortLabel: '✨ Кумир/Фанат', color: '#ffe66d', hasMutuality: false, defaultMutuality: 'none', prompt: 'Idol / celebrity (first character) and devoted admirer / fan (second character)' },
-
-    // Conflict
-    { id: 'rivals', category: 'conflict', label: '⚡ Соперники', shortLabel: '⚡ Соперники', color: '#f77f00', hasMutuality: false, defaultMutuality: 'none', prompt: 'Competitive rivals' },
-    { id: 'ex_friends', category: 'conflict', label: '🥀 Бывшие друзья', shortLabel: '🥀 Бывш. друзья', color: '#e5989b', hasMutuality: false, defaultMutuality: 'none', prompt: 'Former close friends who had a falling out' },
-    { id: 'enemies', category: 'conflict', label: '🗡️ Враги', shortLabel: '🗡️ Враги', color: '#e63946', hasMutuality: false, defaultMutuality: 'none', prompt: 'Hostile enemies' },
-];
-
-// 8 Detailed Crush / Attraction Subtypes with Strict Epistemic Secrecy Rules
-const CRUSH_MUTUALITY = [
-    {
-        id: 'none',
-        label: '➖ Нет романтического подтекста (обычная связь)',
-        shortTag: '',
-        prompt: 'No hidden romantic subtext beyond their primary relationship status.',
-        secrecyRule: '',
-    },
-    {
-        id: 'mutual_open',
-        label: '💞 Открытая взаимная симпатия (флирт)',
-        shortTag: '💞 Взаимно (флирт)',
-        prompt: 'Open mutual romantic attraction and noticeable flirting from both sides.',
-        secrecyRule: 'Both {A} and {B} are openly affectionate/flirtatious with each other.',
-    },
-    {
-        id: 'mutual_secret',
-        label: '🤫 Тайная взаимная влюблённость (оба скрывают)',
-        shortTag: '🤫 Тайная взаимная',
-        prompt: 'Mutual secret crush: BOTH {A} and {B} are secretly in love with each other, but neither has confessed.',
-        secrecyRule: 'STRICT SECRECY LOCK: {A} does NOT know that {B} loves them back, and {B} does NOT know that {A} loves them back! Both think their crush is one-sided and try to hide their nervous attraction. NO other characters or NPCs know about their feelings.',
-    },
-    {
-        id: 'secret_relationship',
-        label: '🔒 Тайная связь (скрывают от окружающих)',
-        shortTag: '🔒 Тайная от всех',
-        prompt: 'Secret romance/intimacy: {A} and {B} know about their mutual feelings/relationship in private, but strictly hide it from the public.',
-        secrecyRule: 'STRICT THIRD-PARTY SECRECY LOCK: ONLY {A} and {B} know about their romantic/intimate bond. In front of ANY other character or NPC, {A} and {B} act strictly according to their public cover status. All other characters and NPCs have ZERO knowledge of this secret romance and must NEVER guess or mention it.',
-    },
-    {
-        id: 'one_way_a_to_b',
-        label: '💔 Безответная / тайная (только {A} → {B})',
-        shortTag: '💔 {A} → {B}',
-        prompt: 'Hidden / unrequited one-sided crush: ONLY {A} is secretly in love with {B}.',
-        secrecyRule: 'STRICT EPISTEMIC LOCK: ONLY {A} knows about {A}\'s romantic feelings for {B}! {B} is completely UNAWARE of {A}\'s crush and treats {A} strictly according to their primary status without romantic reciprocation. ALL other characters and NPCs have ZERO knowledge of {A}\'s secret crush and must NEVER hint at it or read {A}\'s mind.',
-    },
-    {
-        id: 'one_way_b_to_a',
-        label: '💔 Безответная / тайная (только {B} → {A})',
-        shortTag: '💔 {B} → {A}',
-        prompt: 'Hidden / unrequited one-sided crush: ONLY {B} is secretly in love with {A}.',
-        secrecyRule: 'STRICT EPISTEMIC LOCK: ONLY {B} knows about {B}\'s romantic feelings for {A}! {A} is completely UNAWARE of {B}\'s crush and treats {B} strictly according to their primary status without romantic reciprocation. ALL other characters and NPCs have ZERO knowledge of {B}\'s secret crush and must NEVER hint at it or read {B}\'s mind.',
-    },
-    {
-        id: 'unspoken_tension',
-        label: '⚡ Скрытое притяжение / отрицание чувств (цундере)',
-        shortTag: '⚡ Отрицание / искра',
-        prompt: 'Unspoken romantic tension and chemistry masked by denial, pride, sarcasm, or tsundere banter.',
-        secrecyRule: 'STRICT SECRECY LOCK: Neither {A} nor {B} admits any romantic attraction out loud (even to themselves). Other characters and NPCs only see their surface banter/rivalry and do NOT know about any underlying romantic spark.',
-    },
-    {
-        id: 'residual_chemistry',
-        label: '🥀 Остывшие чувства / сложная химия (ревность, бывшие)',
-        shortTag: '🥀 Сложная химия',
-        prompt: 'Complicated residual feelings, hidden jealousy, or unresolved tension kept private.',
-        secrecyRule: 'Any lingering jealousy or unspoken vulnerability between {A} and {B} is guarded internally and not known to outside NPCs.',
-    },
-];
-
-// Genre Presets
-const GENRE_PRESETS = {
-    custom: { label: '✨ Свой микс (Вручную)', prompt: 'Follow the active sub-genres and sliders selected below.' },
-    slowburn_romance: { label: '🕯️ Слоубёрн Романтика', prompt: 'Slow-burn emotional romance. Focus on micro-expressions, lingering glances, subtle tension, gradual trust building. Never rush physical intimacy.' },
-    dark_fantasy: { label: '🗡️ Тёмное фэнтези', prompt: 'Gritty dark fantasy atmosphere. Visceral sensory details, moral ambiguity, dangerous world, grounded consequences, atmospheric dread.' },
-    cyberpunk_noir: { label: '🌃 Киберпанк-Нуар', prompt: 'Rain-soaked neon noir. Cynical internal monologue, high-tech low-life contrast, sharp street dialogue, shadows and chrome.' },
-    psychological_thriller: { label: '🎭 Психологический триллер', prompt: 'Tense psychological drama. Unreliable perceptions, hidden motives, subtext-heavy dialogue, claustrophobic tension.' },
-    cozy_slice_of_life: { label: '☕ Уютная повседневность', prompt: 'Warm slice-of-life comfort. Gentle pacing, sensory warmth, everyday domestic chemistry, natural banter, emotional safety.' },
-    gothic_horror: { label: '🦇 Готический хоррор', prompt: 'Classical gothic dread. Oppressive architecture, eerie silence, poetic melancholy, creeping supernatural unease.' },
-    enemies_to_lovers: { label: '⚔️ От врагов к возлюбленным', prompt: 'Sharp rivalry and verbal sparring masking deep magnetic pull. Pride, stubbornness, reluctant respect, electric proximity.' },
-};
-
-const MULTI_GENRE_TAGS = [
-    { id: 'slowburn', label: '🕯️ Слоубёрн', prompt: 'Slow-burn progression: build tension gradually without rushing milestones.' },
-    { id: 'angst', label: '🌧️ Ангст и драма', prompt: 'Emotional angst, raw vulnerability, heart-wrenching internal conflict.' },
-    { id: 'fluff', label: '🧸 Флафф и нежность', prompt: 'Warm tenderness, tactile comfort, soft affectionate moments.' },
-    { id: 'dark_romance', label: '🖤 Дарк Романс', prompt: 'Obsessive intensity, morally grey dynamics, dangerous attraction.' },
-    { id: 'mystery', label: '🔍 Детектив / Тайна', prompt: 'Suspenseful mystery, clues, guarded secrets, investigative atmosphere.' },
-    { id: 'comedy', label: '😏 Ирония и юмор', prompt: 'Witty banter, situational irony, lively natural humor.' },
-    { id: 'action', label: '💥 Экшен и динамика', prompt: 'Crisp kinetic action, high stakes, physical momentum.' },
-    { id: 'slice_of_life', label: '🍵 Повседневность', prompt: 'Grounded daily life details, realistic routines, natural conversations.' },
-    { id: 'hurt_comfort', label: '🩹 Хёрт / Комфорт', prompt: 'Emotional or physical hurt followed by attentive care and healing.' },
-    { id: 'psychological', label: '🧠 Психологизм', prompt: 'Deep psychological introspection, complex motives, unspoken subtext.' },
-];
-
-// 16 Designer Themes
-const BUILTIN_THEMES = {
-    bluemoon_midnight: {
-        name: '🌙 BlueMoon Полночь',
-        desc: 'Глубокий индиго и неоновый лунный свет',
-        bg: '#0c1120', panel: '#141c32', text: '#e6edf8', accent: '#68a2ff', border: '#273861', glow: 'rgba(104, 162, 255, 0.25)',
-    },
-    obsidian_violet: {
-        name: '🔮 Обсидиан',
-        desc: 'Космический аметист и фиолетовое сияние',
-        bg: '#0f0c1b', panel: '#18132c', text: '#ede8f8', accent: '#a87ffb', border: '#322659', glow: 'rgba(168, 127, 251, 0.26)',
-    },
-    sakura_neon: {
-        name: '🌸 Неоновая Сакура',
-        desc: 'Тёмный шёлк и лепестки ночной вишни',
-        bg: '#170d16', panel: '#251423', text: '#fcebf6', accent: '#ff65a3', border: '#4d2647', glow: 'rgba(255, 101, 163, 0.28)',
-    },
-    crimson_velvet: {
-        name: '🍷 Алый Бархат',
-        desc: 'Готический бордовый и золотая искра',
-        bg: '#170a0e', panel: '#261118', text: '#f9e6ec', accent: '#ff4d6d', border: '#4d202e', glow: 'rgba(255, 77, 109, 0.26)',
-    },
-    emerald_forest: {
-        name: '🌲 Изумрудный Лес',
-        desc: 'Туманная хвоя и светлячки',
-        bg: '#0a1613', panel: '#11241f', text: '#e3f5ef', accent: '#38d399', border: '#20483d', glow: 'rgba(56, 211, 153, 0.24)',
-    },
-    cyber_gold: {
-        name: '⚡ Кибер-Золото',
-        desc: 'Матовый карбон и горячий янтарь',
-        bg: '#14120c', panel: '#211d13', text: '#f7f1e1', accent: '#f5b73b', border: '#473d23', glow: 'rgba(245, 183, 59, 0.25)',
-    },
-    arctic_aurora: {
-        name: '❄️ Полярное Сияние',
-        desc: 'Ледяной океан и бирюзовый неон',
-        bg: '#09151b', panel: '#10242e', text: '#e5f9ff', accent: '#33e1ed', border: '#1f4959', glow: 'rgba(51, 225, 237, 0.25)',
-    },
-    sunset_synthwave: {
-        name: '🌆 Синтвейв Закат',
-        desc: 'Пурпурные сумерки и коралловое солнце',
-        bg: '#180d1e', panel: '#281533', text: '#ffeef8', accent: '#ff7b54', border: '#522961', glow: 'rgba(255, 123, 84, 0.28)',
-    },
-    royal_gold: {
-        name: '👑 Королевский Оникс',
-        desc: 'Чёрный мрамор и жидкое золото',
-        bg: '#0e0d0a', panel: '#1a1813', text: '#fcf7e8', accent: '#eab308', border: '#423922', glow: 'rgba(234, 179, 8, 0.24)',
-    },
-    blood_moon: {
-        name: '🩸 Кровавая Луна',
-        desc: 'Ночной пепел и багровое затмение',
-        bg: '#130707', panel: '#220c0c', text: '#f8e0e0', accent: '#ef233c', border: '#4a1818', glow: 'rgba(239, 35, 60, 0.30)',
-    },
-    lavender_dream: {
-        name: '🪻 Лавандовый Сон',
-        desc: 'Нежные пастельные сумерки и сирень',
-        bg: '#151324', panel: '#211e38', text: '#f2efff', accent: '#c4b5fd', border: '#3e3866', glow: 'rgba(196, 181, 253, 0.25)',
-    },
-    warm_espresso: {
-        name: '☕ Тёплый Эспрессо',
-        desc: 'Уютная кофейня, карамель и корица',
-        bg: '#16110e', panel: '#241c17', text: '#f5ebe4', accent: '#dda15e', border: '#47362b', glow: 'rgba(221, 161, 94, 0.24)',
-    },
-    ocean_abyss: {
-        name: '🌊 Бездна Океана',
-        desc: 'Марианская впадина и биолюминесценция',
-        bg: '#07111e', panel: '#0d1e33', text: '#e0f2fe', accent: '#38bdf8', border: '#1e3a5f', glow: 'rgba(56, 189, 248, 0.26)',
-    },
-    toxic_matrix: {
-        name: '🧪 Неоновый Взлом',
-        desc: 'Терминальный чёрный и кислотный лайм',
-        bg: '#091209', panel: '#112111', text: '#e4fce4', accent: '#80ed99', border: '#1f4722', glow: 'rgba(128, 237, 153, 0.25)',
-    },
-    rose_quartz: {
-        name: '💎 Розовый Кварц',
-        desc: 'Пудровый румянец и жемчужный блеск',
-        bg: '#1b1216', panel: '#2b1d24', text: '#fdf2f7', accent: '#f497b6', border: '#543846', glow: 'rgba(244, 151, 182, 0.25)',
-    },
-    starlight_silver: {
-        name: '✨ Звёздная Пыль',
-        desc: 'Монохромный графит и серебряный свет',
-        bg: '#101216', panel: '#191d24', text: '#f3f4f6', accent: '#94a3b8', border: '#333b48', glow: 'rgba(148, 163, 184, 0.22)',
-    },
-};
-
 const DEFAULT_SETTINGS = {
-    masterEnabled: true,
+    enabled: true,
     relEnabled: true,
     relAutoAnalyze: true,
     isolatePerChat: false,
     styleEnabled: true,
     connectionProfileId: '',
     injectionDepth: 1,
-    activeTheme: 'bluemoon_midnight',
-    customTheme: {
-        bg: '#0c1120',
-        panel: '#141c32',
-        text: '#e6edf8',
-        accent: '#68a2ff',
-        border: '#273861',
-        glow: 'rgba(104, 162, 255, 0.25)',
-    },
+    activeTheme: 'moonlight',
+    relFilterActor: 'ALL',
+    relGroupMode: 'category',
     styleConfig: {
-        genrePreset: 'custom',
-        activeTags: ['slowburn'],
-        customGenreNotes: '',
+        genres: ['dark_romance', 'psychological'],
+        customGenre: '',
+        genreIntensity: 'strict',
         authorVoice: '',
-        intensity: 4,
         sliders: {
-            pacing: 35,
-            romanceSpeed: 25,
-            dialogueRatio: 55,
-            sensoryDetail: 70,
-            emotionalDepth: 75,
+            action: 45,
+            description: 70,
+            dialogue: 65,
+            pacing: 45,
         },
+        customDirectives: '',
     },
-    customRoles: [],
-    uiFilterNodeId: 'ALL',
-    uiGroupMode: 'category',
-    characterProfiles: {},
+    profiles: {},
 };
 
-let activeModalTab = 'tab_rel';
+const THEMES = [
+    { id: 'moonlight', name: 'Лунное серебро', desc: 'Глубокий космос и холодный голубой неон', colors: ['#0b1021', '#141c36', '#7aa2f7'] },
+    { id: 'crimson_velvet', name: 'Алый бархат', desc: 'Тёмная готика, бордовый шёлк и рубин', colors: ['#18090f', '#29101a', '#f7768e'] },
+    { id: 'emerald_forest', name: 'Изумрудный туман', desc: 'Таинственный лес и мятное свечение', colors: ['#081715', '#102824', '#73daca'] },
+    { id: 'obsidian_gold', name: 'Обсидиан и золото', desc: 'Чёрный оникс и тёплое королевское золото', colors: ['#12100e', '#1f1b17', '#e0af68'] },
+    { id: 'amethyst_haze', name: 'Аметистовая дымка', desc: 'Сумеречный фиолет и лавандовый кристалл', colors: ['#130d21', '#211738', '#bb9af7'] },
+    { id: 'cyber_neon', name: 'Киберпанк Неон', desc: 'Ночной мегаполис, маджента и циан', colors: ['#070714', '#12122b', '#ff007c'] },
+    { id: 'sakura_night', name: 'Ночная сакура', desc: 'Тёмный индиго и нежные лепестки вишни', colors: ['#160f1c', '#261a30', '#ff9db8'] },
+    { id: 'ocean_abyss', name: 'Океанская бездна', desc: 'Марианская впадина и биолюминесценция', colors: ['#04121c', '#092233', '#2ac3de'] },
+    { id: 'vampire_blood', name: 'Кровь и пепел', desc: 'Угольно-чёрный замок и алая кровь', colors: ['#0d0608', '#1c0b0e', '#e63946'] },
+    { id: 'sunset_dusk', name: 'Закатные сумерки', desc: 'Пурпурный горизонт и персиковый закат', colors: ['#1a0e1a', '#2e1829', '#ff9e64'] },
+    { id: 'arctic_frost', name: 'Арктический лёд', desc: 'Северное сияние и ледяной кристалл', colors: ['#0a1622', '#13273b', '#89ddff'] },
+    { id: 'witch_covens', name: 'Ведьмин шабаш', desc: 'Тёмный мох, зелье и колдовской изумруд', colors: ['#0d140d', '#182618', '#9ece6a'] },
+    { id: 'royal_indigo', name: 'Королевский индиго', desc: 'Сапфировый бархат и звёздная пыль', colors: ['#0c0e24', '#171b40', '#82aaff'] },
+    { id: 'coffee_noir', name: 'Кофейный нуар', desc: 'Тёплый эспрессо, карамель и старая бумага', colors: ['#17120f', '#261e19', '#d4a373'] },
+    { id: 'toxic_matrix', name: 'Токсичная матрица', desc: 'Хакерский терминал и кислотный лайм', colors: ['#060f08', '#0d2111', '#41ff54'] },
+    { id: 'celestial_rose', name: 'Небесная роза', desc: 'Звёздная пыль и розовое шампанское', colors: ['#17111a', '#281d2d', '#f5a9cb'] },
+];
+
+const ROLE_CATEGORIES = {
+    romance: '💘 Любовь и романтика',
+    friendship: '🤝 Дружба и доверие',
+    family: '🩸 Семья и родство',
+    hierarchy: '👑 Работа, учёба и иерархия',
+    conflict: '⚔️ Конфликт и драма',
+    neutral: '🌫️ Знакомство и прочее',
+    custom: '✨ Свои статусы',
+};
+
+const BUILTIN_RELATIONSHIP_ROLES = [
+    { id: 'strangers', category: 'neutral', label: 'Незнакомцы', en: 'Strangers', promptHint: 'They barely know each other. Maintain natural social distance, curiosity, or caution.' },
+    { id: 'acquaintances', category: 'neutral', label: 'Знакомые', en: 'Acquaintances', promptHint: 'They are casual acquaintances. Polite or neutral interaction without deep personal familiarity.' },
+    { id: 'neighbors', category: 'neutral', label: 'Соседи / Сожители', en: 'Neighbors / Roommates', promptHint: 'They live nearby or share living space. Everyday domestic intersection, shared habits, and boundary negotiation.' },
+    { id: 'travel_companions', category: 'neutral', label: 'Спутники', en: 'Companions / Fellow Travelers', promptHint: 'They are bound by a shared journey or circumstance.' },
+
+    { id: 'friends', category: 'friendship', label: 'Друзья', en: 'Friends', promptHint: 'They are good friends. Warmth, shared jokes, mutual trust, and relaxed body language.' },
+    { id: 'best_friends', category: 'friendship', label: 'Лучшие друзья', en: 'Best Friends / Childhood Friends', promptHint: 'Deepest platonic bond, shared history, intuitive understanding, and fierce loyalty.' },
+    { id: 'confidants', category: 'friendship', label: 'Хранители тайн', en: 'Trusted Confidants', promptHint: 'They share secrets with each other that nobody else knows. High emotional intimacy and discretion.' },
+    { id: 'allies', category: 'friendship', label: 'Союзники / Напарники', en: 'Allies / Partners in Action', promptHint: 'They are practical allies or partners working toward a shared goal. Mutual reliance and tactical trust.' },
+    { id: 'protector_ward', category: 'friendship', label: 'Защитник и подопечный', en: 'Protector & Ward / Bodyguard', promptHint: 'One feels a strong duty or instinct to protect and watch over the other.' },
+
+    { id: 'crush', category: 'romance', label: 'Симпатия / Влюблённость', en: 'Romantic Crush / Infatuation', promptHint: 'There is noticeable romantic attraction, nervous energy, stolen glances, and emotional sensitivity.' },
+    { id: 'flirt_fwb', category: 'romance', label: 'Флирт / Интим без обязательств', en: 'Flirtation / Friends with Benefits', promptHint: 'Playful teasing, physical chemistry, and intimate tension without strict formal commitment.' },
+    { id: 'lovers', category: 'romance', label: 'Любовники / Пара', en: 'Romantic Partners / Lovers', promptHint: 'Established romantic and physical intimacy, deep affection, and shared history as a couple.' },
+    { id: 'secret_lovers', category: 'romance', label: 'Тайные любовники', en: 'Forbidden / Secret Lovers', promptHint: 'They are in a secret romantic/passionate relationship hidden from others. Stolen moments, public restraint vs private passion.' },
+    { id: 'betrothed', category: 'romance', label: 'Помолвлены', en: 'Betrothed / Engaged', promptHint: 'They are promised to each other in marriage (by choice or arrangement).' },
+    { id: 'spouses', category: 'romance', label: 'Супруги (Брак)', en: 'Married Spouses', promptHint: 'They are legally or spiritually married. Deep domestic history, shared life, and complex marital dynamics.' },
+    { id: 'exes', category: 'romance', label: 'Бывшие', en: 'Ex-Lovers / Ex-Partners', promptHint: 'They used to be together. Residual tension, old wounds, lingering habits, and unspoken history.' },
+    { id: 'obsession', category: 'romance', label: 'Одержимость / Созависимость', en: 'Dark Obsession / Codependency', promptHint: 'Intense, consuming, possessive emotional fixation where boundaries blur.' },
+
+    { id: 'siblings', category: 'family', label: 'Брат / Сестра', en: 'Siblings', promptHint: 'Sibling bond: shared upbringing, familiar bickering, deep-seated family history.' },
+    { id: 'parent_child', category: 'family', label: 'Родитель и ребёнок', en: 'Parent & Child / Guardian', promptHint: 'Generational family bond, authority, care, expectations, or rebellion.' },
+    { id: 'relatives', category: 'family', label: 'Родственники / Клан', en: 'Extended Family / Blood Kin', promptHint: 'Tied by blood, family reputation, or shared lineage.' },
+
+    { id: 'colleagues', category: 'hierarchy', label: 'Коллеги / Сослуживцы', en: 'Colleagues / Peers', promptHint: 'They work or study together in the same environment. Professional familiarity.' },
+    { id: 'mentor_student', category: 'hierarchy', label: 'Наставник и ученик', en: 'Mentor & Student', promptHint: 'Knowledge transfer, guidance, respect, or testing of limits between teacher and pupil.' },
+    { id: 'boss_subordinate', category: 'hierarchy', label: 'Начальник и подчинённый', en: 'Superior & Subordinate / Master & Servant', promptHint: 'Clear power asymmetry, hierarchy, command, and compliance or subtle defiance.' },
+
+    { id: 'rivals', category: 'conflict', label: 'Соперники', en: 'Rivals', promptHint: 'Competitive tension, pride, sharp banter, and constant comparison.' },
+    { id: 'enemies', category: 'conflict', label: 'Враги', en: 'Enemies / Antagonists', promptHint: 'Hostility, distrust, guarded posture, and genuine conflict of interest.' },
+    { id: 'complicated', category: 'conflict', label: 'Всё сложно', en: 'It Is Complicated / Mixed Signals', promptHint: 'Conflicting emotions, push-and-pull dynamic, unresolved tension.' },
+];
+
+const CRUSH_MUTUALITY = [
+    {
+        id: 'none',
+        labelTemplate: 'Нет романтического подтекста',
+        enTemplate: 'No romantic subtext (strictly matches their primary status)',
+        secrecyRule: null,
+    },
+    {
+        id: 'mutual_open',
+        labelTemplate: 'Открытая взаимная симпатия / флирт ({A} ↔ {B})',
+        enTemplate: 'Open mutual attraction & noticeable flirting between {A} and {B}',
+        secrecyRule: 'Both {A} and {B} are openly aware of their mutual attraction and show it through subtle or direct flirting.',
+    },
+    {
+        id: 'mutual_secret',
+        labelTemplate: 'Тайная взаимная влюблённость (оба скрывают друг от друга)',
+        enTemplate: 'Mutual secret pining ({A} and {B} are both in love with each other, but BOTH hide it and think it is unreciprocated)',
+        secrecyRule: 'STRICT EPISTEMIC SECRECY: {A} is secretly in love with {B}, and {B} is secretly in love with {A}. However, NEITHER knows that the other reciprocates! Both hide their feelings out of fear, pride, or circumstance. Do NOT let them magically read each other\'s minds. Outside NPCs also do NOT know.',
+    },
+    {
+        id: 'secret_relationship',
+        labelTemplate: 'Тайная связь ({A} и {B} вместе, но скрывают от всех остальных)',
+        enTemplate: 'Secret romantic/intimate relationship between {A} and {B} (known to each other, strictly hidden from everyone else)',
+        secrecyRule: 'STRICT THIRD-PARTY SECRECY: {A} and {B} know about their bond and are privately intimate, but they actively hide their relationship from ALL other characters and NPCs. In public or around others, they act according to their cover status. No other character or NPC may know or casually guess their secret unless caught red-handed in the active scene.',
+    },
+    {
+        id: 'one_way_a_to_b',
+        labelTemplate: 'Тайная / безответная: только {A} влюблён(а) в {B}',
+        enTemplate: 'One-sided / unrequited secret feelings: ONLY {A} has romantic feelings for {B}, while {B} does NOT reciprocate and is completely unaware',
+        secrecyRule: 'STRICT ANTI-OMNISCIENCE & SECRECY: ONLY {A} harbors romantic feelings/attraction toward {B}. {A} conceals these feelings. {B} is COMPLETELY UNAWARE of {A}\'s secret feelings and views {A} strictly through their primary status. {B} must NEVER act as if they know {A} is in love with them, and NO other NPC knows {A}\'s secret.',
+    },
+    {
+        id: 'one_way_b_to_a',
+        labelTemplate: 'Тайная / безответная: только {B} влюблён(а) в {A}',
+        enTemplate: 'One-sided / unrequited secret feelings: ONLY {B} has romantic feelings for {A}, while {A} does NOT reciprocate and is completely unaware',
+        secrecyRule: 'STRICT ANTI-OMNISCIENCE & SECRECY: ONLY {B} harbors romantic feelings/attraction toward {A}. {B} conceals these feelings. {A} is COMPLETELY UNAWARE of {B}\'s secret feelings and views {B} strictly through their primary status. {A} must NEVER act as if they know {B} is in love with them, and NO other NPC knows {B}\'s secret.',
+    },
+    {
+        id: 'unspoken_tension',
+        labelTemplate: 'Скрытое притяжение / отрицание ({A} ⚡ {B})',
+        enTemplate: 'Unspoken sexual/romantic tension & denial between {A} and {B}',
+        secrecyRule: 'Both {A} and {B} feel an unspoken pull or physical chemistry, but both suppress, deny, or rationalize it away. Neither admits it aloud, and outside characters do not know about their internal struggle.',
+    },
+    {
+        id: 'residual_chemistry',
+        labelTemplate: 'Остывшие чувства / сложная химия прошлого ({A} ~ {B})',
+        enTemplate: 'Residual feelings / complicated past romantic history between {A} and {B}',
+        secrecyRule: 'There are lingering echoes of past feelings or unresolved emotional tension between {A} and {B}, kept private from outsiders.',
+    },
+];
+
+function getMutualityInfo(mutualityId, nameA = 'Персонаж А', nameB = 'Персонаж Б') {
+    const found = CRUSH_MUTUALITY.find((m) => m.id === mutualityId) || CRUSH_MUTUALITY[0];
+    const replaceNames = (str) => (str ? str.replace(/\{A\}/g, nameA).replace(/\{B\}/g, nameB) : '');
+    return {
+        id: found.id,
+        label: replaceNames(found.labelTemplate),
+        en: replaceNames(found.enTemplate),
+        secrecyRule: replaceNames(found.secrecyRule),
+    };
+}
+
+const GENRE_PRESETS = [
+    { id: 'dark_romance', label: 'Тёмная романтика', en: 'Dark Romance (intense emotional stakes, morally grey attraction, slow-burn tension)' },
+    { id: 'psychological', label: 'Психологизм', en: 'Psychological Realism (deep internal conflicts, subtle micro-expressions, realistic motives)' },
+    { id: 'slice_of_life', label: 'Повседневность', en: 'Grounded Slice of Life (tactile everyday details, natural casual dialogue, atmospheric realism)' },
+    { id: 'slow_burn', label: 'Слоубёрн', en: 'Strict Slow Burn (earned emotional progression, lingering tension, no rushed intimacy)' },
+    { id: 'noir_thriller', label: 'Нуар / Триллер', en: 'Noir & Suspense Thriller (gritty atmosphere, cynicism, high stakes, sharp subtext)' },
+    { id: 'gothic', label: 'Готика / Мистика', en: 'Gothic Mystery (brooding ambiance, sensory shadows, uncanny undertones)' },
+    { id: 'drama_angst', label: 'Драма / Ангст', en: 'Heavy Emotional Drama & Angst (raw vulnerability, aching consequences, sharp emotional friction)' },
+    { id: 'dark_fantasy', label: 'Тёмное фэнтези', en: 'Gritty Dark Fantasy (immersive worldbuilding, dangerous magic, grounded consequences)' },
+    { id: 'cyberpunk', label: 'Киберпанк / Sci-Fi', en: 'Cyberpunk / Hard Sci-Fi (high-tech low-life, neon grit, corporate coldness)' },
+    { id: 'historical', label: 'Историческая проза', en: 'Historical Fiction (period-accurate etiquette, authentic vocabulary, rich setting)' },
+    { id: 'comedy_wit', label: 'Ирония / Сарказм', en: 'Sharp Wit & Dry Irony (clever banter, situational humor, lively character timing)' },
+    { id: 'action_adventure', label: 'Экшен / Приключения', en: 'Kinetic Action & Adventure (visceral choreography, dynamic movement, clear spatial awareness)' },
+];
+
+let selectedParticipantId = null;
 let selectedRelId = null;
-let graphDragNodeId = null;
-let graphCanvasResizeObserver = null;
-let isAnalyzingRel = false;
+let isAnalyzing = false;
 let isInitialized = false;
-let modalEventsBound = false;
+let graphState = {
+    nodes: [],
+    edges: [],
+    scale: 1,
+    offsetX: 0,
+    offsetY: 0,
+    draggingNode: null,
+    isPanning: false,
+    lastTouchX: 0,
+    lastTouchY: 0,
+    animFrame: null,
+    resizeObserver: null,
+};
+
+function getContext() {
+    return window.SillyTavern?.getContext?.() || {};
+}
 
 function getSettings() {
-    if (!extension_settings[MODULE_NAME]) {
-        extension_settings[MODULE_NAME] = safeClone(DEFAULT_SETTINGS);
+    const ctx = getContext();
+    if (!ctx.extensionSettings) return DEFAULT_SETTINGS;
+    if (!ctx.extensionSettings[MODULE_NAME] || typeof ctx.extensionSettings[MODULE_NAME] !== 'object') {
+        ctx.extensionSettings[MODULE_NAME] = safeClone(DEFAULT_SETTINGS);
     }
-    const s = extension_settings[MODULE_NAME];
+    const s = ctx.extensionSettings[MODULE_NAME];
     for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) {
-        if (s[k] === undefined) {
-            s[k] = safeClone(v);
-        }
+        if (s[k] === undefined || s[k] === null) s[k] = safeClone(v);
     }
     if (!s.styleConfig || typeof s.styleConfig !== 'object') {
         s.styleConfig = safeClone(DEFAULT_SETTINGS.styleConfig);
     }
-    if (!s.styleConfig.sliders) {
+    for (const [k, v] of Object.entries(DEFAULT_SETTINGS.styleConfig)) {
+        if (s.styleConfig[k] === undefined || s.styleConfig[k] === null) s.styleConfig[k] = safeClone(v);
+    }
+    if (!Array.isArray(s.styleConfig.genres)) {
+        s.styleConfig.genres = safeClone(DEFAULT_SETTINGS.styleConfig.genres);
+    }
+    if (!s.styleConfig.sliders || typeof s.styleConfig.sliders !== 'object') {
         s.styleConfig.sliders = safeClone(DEFAULT_SETTINGS.styleConfig.sliders);
     }
-    if (!Array.isArray(s.styleConfig.activeTags)) {
-        s.styleConfig.activeTags = ['slowburn'];
-    }
-    if (!Array.isArray(s.customRoles)) {
-        s.customRoles = [];
-    }
-    if (s.styleConfig.intensity === undefined) {
-        s.styleConfig.intensity = 4;
-    }
-    if (!s.uiFilterNodeId) {
-        s.uiFilterNodeId = 'ALL';
-    }
-    if (!s.uiGroupMode) {
-        s.uiGroupMode = 'category';
-    }
-    if (!s.characterProfiles || typeof s.characterProfiles !== 'object') {
-        s.characterProfiles = {};
+    if (!s.profiles || typeof s.profiles !== 'object') {
+        s.profiles = {};
     }
     return s;
 }
 
-function getAllRoles() {
-    const s = getSettings();
-    const custom = (s.customRoles || []).map(r => ({
-        id: r.id,
-        category: r.category || 'other',
-        label: r.label,
-        shortLabel: r.shortLabel || r.label.slice(0, 14),
-        color: r.color || '#68a2ff',
-        hasMutuality: true,
-        defaultMutuality: 'none',
-        prompt: r.prompt || r.label,
-        isCustom: true,
-    }));
-    return [...BUILTIN_RELATIONSHIP_ROLES, ...custom];
-}
-
-function getRoleInfo(roleId) {
-    const all = getAllRoles();
-    return all.find(r => r.id === roleId) || all[6];
-}
-
-function getMutualityInfo(mutualityId, nameA = 'Персонаж А', nameB = 'Персонаж Б') {
-    const raw = CRUSH_MUTUALITY.find(m => m.id === mutualityId) || CRUSH_MUTUALITY[0];
-    const safeA = String(nameA || 'Персонаж А');
-    const safeB = String(nameB || 'Персонаж Б');
-    return {
-        id: raw.id,
-        label: raw.label.replace(/\{A\}/g, safeA).replace(/\{B\}/g, safeB),
-        shortTag: (raw.shortTag || '').replace(/\{A\}/g, safeA).replace(/\{B\}/g, safeB),
-        prompt: raw.prompt.replace(/\{A\}/g, safeA).replace(/\{B\}/g, safeB),
-        secrecyRule: (raw.secrecyRule || '').replace(/\{A\}/g, safeA).replace(/\{B\}/g, safeB),
-    };
+function saveSettings() {
+    const ctx = getContext();
+    if (typeof ctx.saveSettingsDebounced === 'function') {
+        ctx.saveSettingsDebounced();
+    }
 }
 
 function getBaseCharacterKey() {
     const ctx = getContext();
-    const charId = ctx.characterId;
-    const charObj = (charId !== undefined && ctx.characters?.[charId]) ? ctx.characters[charId] : null;
-    const charKey = charObj?.avatar || charObj?.name || ctx.groupId || 'global_default';
-    return `char_${charKey}`;
+    const charId = ctx.characterId !== undefined && ctx.characterId !== null ? String(ctx.characterId) : 'nochar';
+    const groupId = ctx.groupId ? String(ctx.groupId) : '';
+    return groupId ? `group_${groupId}` : `char_${charId}`;
 }
 
 function getActiveProfileKey() {
-    const ctx = getContext();
     const s = getSettings();
     const baseKey = getBaseCharacterKey();
     if (s.isolatePerChat) {
-        const chatId = ctx.chatId || 'default_chat';
-        return `${baseKey}__chat_${chatId}`;
+        const ctx = getContext();
+        const chatId = ctx.chatId ? String(ctx.chatId) : 'default_chat';
+        return `${baseKey}__${chatId}`;
     }
     return baseKey;
 }
 
-function getActiveCharacterName() {
-    const ctx = getContext();
-    const charId = ctx.characterId;
-    if (charId !== undefined && ctx.characters?.[charId]) {
-        return ctx.characters[charId].name || 'Персонаж';
+function findBestDonorProfileForBaseKey(baseKey) {
+    const s = getSettings();
+    if (!s.profiles) return null;
+
+    if (s.profiles[baseKey] && Array.isArray(s.profiles[baseKey].participants) && s.profiles[baseKey].participants.length > 0) {
+        return s.profiles[baseKey];
     }
-    return 'Персонаж';
-}
 
-function getActiveUserName() {
-    const ctx = getContext();
-    return ctx.name1 || 'Игрок';
-}
-
-function getDefaultCharAvatarUrl() {
-    const ctx = getContext();
-    const charId = ctx.characterId;
-    if (charId !== undefined && ctx.characters?.[charId]?.avatar) {
-        return `/characters/${encodeURIComponent(ctx.characters[charId].avatar)}`;
-    }
-    return '';
-}
-
-function findBestDonorProfileForBaseKey(s, baseKey) {
-    let bestDonor = null;
+    let bestProfile = null;
     let bestScore = -1;
+    const prefix = `${baseKey}__`;
 
-    for (const [k, prof] of Object.entries(s.characterProfiles)) {
-        if (k === baseKey || k.startsWith(`${baseKey}__chat_`)) {
-            if (!prof || !Array.isArray(prof.nodes)) continue;
-            const npcCount = prof.nodes.filter(n => n.type === 'npc').length;
-            const relCount = Array.isArray(prof.relationships) ? prof.relationships.length : 0;
-            const memCount = (prof.relationships || []).reduce((acc, r) => acc + (r.memories?.length || 0), 0);
-            const nonZeroAff = (prof.relationships || []).filter(r => Number(r.affection || 0) !== 0).length;
-            const score = npcCount * 100 + relCount * 25 + memCount * 10 + nonZeroAff * 15;
-            if (score > bestScore && score > 0) {
+    for (const [key, prof] of Object.entries(s.profiles)) {
+        if (key === baseKey || key.startsWith(prefix)) {
+            const pCount = Array.isArray(prof?.participants) ? prof.participants.length : 0;
+            const rCount = Array.isArray(prof?.relationships) ? prof.relationships.length : 0;
+            const score = pCount * 10 + rCount * 25;
+            if (score > bestScore && (pCount > 0 || rCount > 0)) {
                 bestScore = score;
-                bestDonor = prof;
+                bestProfile = prof;
             }
         }
     }
-    return bestDonor;
+    return bestProfile;
 }
 
-function getActiveProfile() {
-    const s = getSettings();
-    const baseKey = getBaseCharacterKey();
-    const key = getActiveProfileKey();
+function getAllRoles(profile) {
+    const custom = Array.isArray(profile?.customRoles) ? profile.customRoles : [];
+    return [...BUILTIN_RELATIONSHIP_ROLES, ...custom];
+}
 
-    if (!s.characterProfiles[key]) {
-        const donor = findBestDonorProfileForBaseKey(s, baseKey);
+function getRoleInfo(roleId, profile) {
+    const all = getAllRoles(profile);
+    return all.find((r) => r.id === roleId) || BUILTIN_RELATIONSHIP_ROLES[1];
+}
+
+function getProfileData() {
+    const s = getSettings();
+    const key = getActiveProfileKey();
+    const baseKey = getBaseCharacterKey();
+
+    if (!s.profiles[key] || typeof s.profiles[key] !== 'object') {
+        const donor = findBestDonorProfileForBaseKey(baseKey);
         if (donor) {
-            s.characterProfiles[key] = safeClone(donor);
+            s.profiles[key] = safeClone(donor);
         } else {
-            s.characterProfiles[key] = {
-                storyDate: 'День 1',
-                nodes: [],
+            s.profiles[key] = {
+                currentStoryDate: 'День 1',
+                participants: [],
                 relationships: [],
+                customRoles: [],
             };
         }
     }
 
-    const profile = s.characterProfiles[key];
-    const currentNpcCount = (profile.nodes || []).filter(n => n.type === 'npc').length;
-    const currentRelCount = (profile.relationships || []).length;
-    if (currentNpcCount === 0 && currentRelCount <= 1) {
-        const donor = findBestDonorProfileForBaseKey(s, baseKey);
-        if (donor && donor !== profile) {
-            const donorNpcCount = (donor.nodes || []).filter(n => n.type === 'npc').length;
-            const donorRelCount = (donor.relationships || []).length;
-            if (donorNpcCount > currentNpcCount || donorRelCount > currentRelCount) {
-                s.characterProfiles[key] = safeClone(donor);
+    const profile = s.profiles[key];
+    if (!Array.isArray(profile.participants)) profile.participants = [];
+    if (!Array.isArray(profile.relationships)) profile.relationships = [];
+    if (!Array.isArray(profile.customRoles)) profile.customRoles = [];
+    if (!profile.currentStoryDate) profile.currentStoryDate = 'День 1';
+
+    ensureCoreParticipants(profile);
+    return profile;
+}
+
+function ensureCoreParticipants(profile) {
+    if (!profile || !Array.isArray(profile.participants)) return;
+    const ctx = getContext();
+    const userName = ctx.name1 || 'Игрок';
+    const charName = ctx.name2 || 'Персонаж';
+
+    let userNode = profile.participants.find((p) => p && p.role === 'user');
+    if (!userNode) {
+        userNode = {
+            id: 'p_user',
+            name: userName,
+            role: 'user',
+            avatar: getUserAvatarUrl(),
+            x: 115,
+            y: 170,
+        };
+        profile.participants.push(userNode);
+    } else {
+        userNode.name = userName;
+        if (!userNode.avatar || (!userNode.avatar.startsWith('data:') && !userNode.customAvatar)) {
+            userNode.avatar = getUserAvatarUrl();
+        }
+    }
+
+    if (charName && charName !== 'SillyTavern System') {
+        let charNode = profile.participants.find((p) => p && p.role === 'char');
+        if (!charNode) {
+            charNode = {
+                id: 'p_char',
+                name: charName,
+                role: 'char',
+                avatar: getCharAvatarUrl(),
+                x: 245,
+                y: 170,
+            };
+            profile.participants.push(charNode);
+        } else {
+            charNode.name = charName;
+            if (!charNode.avatar || (!charNode.avatar.startsWith('data:') && !charNode.customAvatar)) {
+                charNode.avatar = getCharAvatarUrl();
             }
         }
     }
 
-    const activeProfile = s.characterProfiles[key];
-    ensureCoreNodesAndPair(activeProfile);
-    return activeProfile;
+    if (profile.participants.length >= 2 && profile.relationships.length === 0) {
+        const p1 = profile.participants[0];
+        const p2 = profile.participants[1];
+        if (p1 && p2) {
+            getOrCreateRelationship(profile, p1.id, p2.id);
+        }
+    }
 }
 
-function ensureCoreNodesAndPair(profile) {
-    if (!Array.isArray(profile.nodes)) profile.nodes = [];
-    if (!Array.isArray(profile.relationships)) profile.relationships = [];
-    if (!profile.storyDate) profile.storyDate = 'День 1';
-
-    const charName = getActiveCharacterName();
-    const userName = getActiveUserName();
-
-    let charNode = profile.nodes.find(n => n.id === 'node_char');
-    if (!charNode) {
-        charNode = {
-            id: 'node_char',
-            name: charName,
-            type: 'char',
-            avatar: getDefaultCharAvatarUrl(),
-            x: 195,
-            y: 205,
-        };
-        profile.nodes.unshift(charNode);
-    } else {
-        charNode.name = charName;
-        if (!charNode.avatar) charNode.avatar = getDefaultCharAvatarUrl();
+function getCharAvatarUrl() {
+    const ctx = getContext();
+    if (ctx.characterId !== undefined && ctx.characters && ctx.characters[ctx.characterId]) {
+        const av = ctx.characters[ctx.characterId].avatar;
+        if (av && av !== 'none') {
+            return `/characters/${encodeURIComponent(av)}`;
+        }
     }
+    return '';
+}
 
-    let userNode = profile.nodes.find(n => n.id === 'node_user');
-    if (!userNode) {
-        userNode = {
-            id: 'node_user',
-            name: userName,
-            type: 'user',
-            avatar: '',
-            x: 425,
-            y: 205,
-        };
-        profile.nodes.push(userNode);
-    } else {
-        userNode.name = userName;
+function getUserAvatarUrl() {
+    const userImg = document.querySelector('#user_avatar_block .avatar.selected img');
+    if (userImg && userImg.getAttribute('src')) {
+        return userImg.getAttribute('src');
     }
+    return '';
+}
 
-    let coreRel = profile.relationships.find(
-        r => (r.from === 'node_char' && r.to === 'node_user') || (r.from === 'node_user' && r.to === 'node_char'),
-    );
-    if (!coreRel) {
-        coreRel = {
-            id: 'rel_char_user',
-            from: 'node_char',
-            to: 'node_user',
-            role: 'acquaintances',
+function makePairId(idA, idB) {
+    return [idA, idB].sort().join('__');
+}
+
+function getOrCreateRelationship(profile, idA, idB) {
+    if (idA === idB) return null;
+    const pairId = makePairId(idA, idB);
+    let rel = profile.relationships.find((r) => r && r.id === pairId);
+    if (!rel) {
+        const [sourceId, targetId] = [idA, idB].sort();
+        rel = {
+            id: pairId,
+            sourceId,
+            targetId,
+            roleId: 'acquaintances',
             mutuality: 'none',
-            affection: 0,
-            lastStoryDate: profile.storyDate,
-            lastReason: 'Начало истории',
-            notes: '',
-            memories: [],
+            affinity: 0,
+            summary: '',
+            events: [],
         };
-        profile.relationships.unshift(coreRel);
-    } else if (!coreRel.mutuality) {
-        const roleInfo = getRoleInfo(coreRel.role);
-        coreRel.mutuality = roleInfo.defaultMutuality || 'none';
+        profile.relationships.push(rel);
     }
+    if (!rel.mutuality) rel.mutuality = 'none';
+    if (!Array.isArray(rel.events)) rel.events = [];
+    return rel;
 }
 
-function getAffectionTierLabel(score) {
-    const val = Number(score) || 0;
-    if (val <= -75) return 'Смертельная вражда (-75..-100%)';
-    if (val <= -40) return 'Ненависть / Враждебность (-40..-74%)';
-    if (val <= -15) return 'Неприязнь / Холод (-15..-39%)';
-    if (val < 15) return 'Нейтралитет / Дистанция (-14..+14%)';
-    if (val < 45) return 'Симпатия / Доверие (+15..+44%)';
-    if (val < 75) return 'Глубокая привязанность (+45..+74%)';
-    return 'Преданность / Любовь (+75..+100%)';
+function clampAffinity(val) {
+    const n = Number(val);
+    if (Number.isNaN(n)) return 0;
+    return Math.max(-100, Math.min(100, Math.round(n)));
+}
+
+function formatAffinity(val) {
+    const c = clampAffinity(val);
+    return c > 0 ? `+${c}%` : `${c}%`;
+}
+
+function getAffinityTierLabel(val) {
+    const c = clampAffinity(val);
+    if (c <= -75) return 'Ненависть / Вражда';
+    if (c <= -40) return 'Неприязнь / Холод';
+    if (c <= -15) return 'Недоверие / Напряжение';
+    if (c < 15) return 'Нейтралитет';
+    if (c < 45) return 'Симпатия / Доверие';
+    if (c < 75) return 'Крепкая близость';
+    return 'Глубокая привязанность';
 }
 
 function buildRelationshipsPrompt() {
     const s = getSettings();
-    if (!s.masterEnabled || !s.relEnabled) return '';
+    if (!s.enabled || !s.relEnabled) return '';
+    const profile = getProfileData();
+    if (!profile.relationships || profile.relationships.length === 0) return '';
 
-    const profile = getActiveProfile();
-    if (!profile.relationships.length) return '';
+    const pMap = new Map(profile.participants.filter(Boolean).map((p) => [p.id, p]));
+    const allParticipants = profile.participants.filter(Boolean);
+    const lines = [];
+    const epistemicSecrets = [];
 
-    const nodeMap = Object.fromEntries(profile.nodes.map(n => [n.id, n.name]));
-    const allNames = profile.nodes.map(n => n.name);
-
-    const lines = [
-        '[MANDATORY CHARACTER & NPC RELATIONSHIP NETWORK — STRICT CANON & EPISTEMIC ISOLATION]',
-        `Current Story Date / Timeline: ${profile.storyDate || 'Day 1'}`,
-        'ABSOLUTE DIRECTIVE: You MUST strictly portray the exact relationship statuses, affection scores (-100% to +100%), hierarchies, and romantic subtext listed below for every character and NPC. Never invent unestablished romance, never contradict who is dating whom, and never break interpersonal boundaries:',
-    ];
-
-    const secrecyRulesToEnforce = [];
+    lines.push(`[MANDATORY CHARACTER & NPC RELATIONSHIP NETWORK — STRICT CANON & EPISTEMIC ISOLATION]`);
+    lines.push(`Current Story Date / Timeline Marker: ${profile.currentStoryDate || 'Day 1'}`);
+    lines.push(`CRITICAL INSTRUCTION: Every character and NPC in this story MUST strictly act, speak, and react according to their exact relationship status, romantic mutuality, and affinity score below (-100% = bitter hatred, 0% = pure neutrality, +100% = absolute devotion). Do NOT make hostile characters suddenly sweet, do NOT make strangers act like old lovers, and NEVER violate the secrecy rules below:`);
 
     for (const rel of profile.relationships) {
-        const nameA = nodeMap[rel.from] || rel.from;
-        const nameB = nodeMap[rel.to] || rel.to;
-        const roleObj = getRoleInfo(rel.role);
-        const mutId = rel.mutuality || roleObj.defaultMutuality || 'none';
-        const mutObj = getMutualityInfo(mutId, nameA, nameB);
-        const score = Math.max(-100, Math.min(100, Number(rel.affection) || 0));
-        const sign = score > 0 ? `+${score}%` : `${score}%`;
+        if (!rel) continue;
+        const pA = pMap.get(rel.sourceId);
+        const pB = pMap.get(rel.targetId);
+        if (!pA || !pB) continue;
 
-        let line = `- ${nameA} ↔ ${nameB}: Official/Public Status="${roleObj.label}" (${roleObj.prompt}) | Affection=${sign} (${getAffectionTierLabel(score)})`;
-        if (mutId && mutId !== 'none') {
-            line += ` | Romantic Subtext: "${mutObj.label}" (${mutObj.prompt})`;
-        }
-        if (rel.lastStoryDate) {
-            line += ` | Updated: ${rel.lastStoryDate}`;
-        }
-        if (rel.notes && rel.notes.trim()) {
-            line += ` | Dynamic/Notes: ${rel.notes.trim()}`;
-        }
-        lines.push(line);
+        const roleObj = getRoleInfo(rel.roleId, profile);
+        const aff = clampAffinity(rel.affinity);
+        const mutInfo = getMutualityInfo(rel.mutuality || 'none', pA.name, pB.name);
 
-        const thirdParties = allNames.filter(n => n !== nameA && n !== nameB);
-        const thirdPartyList = thirdParties.length > 0
-            ? `(${thirdParties.join(', ')} and any other NPCs)`
-            : '(all other characters and NPCs)';
+        let entry = `• ${pA.name} ↔ ${pB.name}: Primary Status = "${roleObj.en}" (${roleObj.label}) | Affinity = ${formatAffinity(aff)}`;
+        if (mutInfo.id !== 'none') {
+            entry += ` | Romantic/Crush Dynamic = ${mutInfo.en}`;
+        }
+        entry += `. Behavioral Directive: ${roleObj.promptHint}`;
 
-        if (mutId === 'one_way_a_to_b') {
-            secrecyRulesToEnforce.push(
-                `* SECRET UNREQUITED CRUSH (${nameA} → ${nameB}): ONLY ${nameA} knows about ${nameA}'s romantic feelings for ${nameB}. ${nameB} is completely UNAWARE of ${nameA}'s crush and treats ${nameA} strictly as "${roleObj.label}". Furthermore, ${thirdPartyList} have ZERO knowledge of ${nameA}'s secret feelings and must NEVER hint, tease, guess, or act omniscient about it.`,
-            );
-        } else if (mutId === 'one_way_b_to_a') {
-            secrecyRulesToEnforce.push(
-                `* SECRET UNREQUITED CRUSH (${nameB} → ${nameA}): ONLY ${nameB} knows about ${nameB}'s romantic feelings for ${nameA}. ${nameA} is completely UNAWARE of ${nameB}'s crush and treats ${nameB} strictly as "${roleObj.label}". Furthermore, ${thirdPartyList} have ZERO knowledge of ${nameB}'s secret feelings and must NEVER hint, tease, guess, or act omniscient about it.`,
-            );
-        } else if (mutId === 'mutual_secret') {
-            secrecyRulesToEnforce.push(
-                `* MUTUAL SECRET CRUSH (${nameA} ↔ ${nameB}): Both ${nameA} and ${nameB} are secretly in love with each other, but NEITHER knows that the other reciprocates! ${nameA} hides their feelings from ${nameB}, and ${nameB} hides their feelings from ${nameA}. Furthermore, ${thirdPartyList} have ZERO knowledge of their secret feelings and must NEVER act aware of it.`,
-            );
-        } else if (mutId === 'secret_relationship' || rel.role === 'secret_lovers') {
-            secrecyRulesToEnforce.push(
-                `* HIDDEN AFFAIR / SECRET RELATIONSHIP (${nameA} ↔ ${nameB}): ONLY ${nameA} and ${nameB} know about their secret romantic/intimate relationship. In front of ${thirdPartyList}, they strictly hide their romance and act like ordinary acquaintances/colleagues/friends. ${thirdPartyList} have ZERO knowledge of their secret bond and must NEVER suspect or mention it unless explicitly caught on-screen.`,
-            );
-        } else if (mutId === 'unspoken_tension') {
-            secrecyRulesToEnforce.push(
-                `* UNSPOKEN TENSION / DENIAL (${nameA} ↔ ${nameB}): Neither ${nameA} nor ${nameB} admits any romantic attraction out loud. ${thirdPartyList} only perceive their surface interaction ("${roleObj.label}") and do NOT know about any hidden spark.`,
-            );
+        if (rel.summary && rel.summary.trim()) {
+            entry += ` Current dynamic & context: ${rel.summary.trim()}`;
         }
 
-        if (Array.isArray(rel.memories) && rel.memories.length > 0) {
-            const recentMems = rel.memories.slice(-4);
-            for (const m of recentMems) {
-                lines.push(`   * Shared Memory [${m.date || profile.storyDate}]: ${m.text}`);
+        if (Array.isArray(rel.events) && rel.events.length > 0) {
+            const recent = rel.events.slice(-4).map((e) => `[${e.date || '?'}] ${e.text}`).join('; ');
+            entry += ` Key shared memories: ${recent}.`;
+        }
+        lines.push(entry);
+
+        if (mutInfo.secrecyRule) {
+            const otherNames = allParticipants
+                .filter((p) => p.id !== pA.id && p.id !== pB.id)
+                .map((p) => p.name);
+            const thirdPartyList = otherNames.length > 0 ? otherNames.join(', ') : 'all other NPCs/bystanders';
+
+            let secretBlock = `• SECRET FEELINGS FIREWALL (${pA.name} & ${pB.name}): ${mutInfo.secrecyRule}`;
+            if (mutInfo.id === 'one_way_a_to_b') {
+                secretBlock += ` Specifically: ${pB.name} has ZERO knowledge that ${pA.name} has romantic feelings for them. Furthermore, third-party characters (${thirdPartyList}) have ZERO knowledge of ${pA.name}'s secret feelings and must NEVER tease, hint, or act omniscient about it.`;
+            } else if (mutInfo.id === 'one_way_b_to_a') {
+                secretBlock += ` Specifically: ${pA.name} has ZERO knowledge that ${pB.name} has romantic feelings for them. Furthermore, third-party characters (${thirdPartyList}) have ZERO knowledge of ${pB.name}'s secret feelings and must NEVER tease, hint, or act omniscient about it.`;
+            } else if (mutInfo.id === 'mutual_secret') {
+                secretBlock += ` Specifically: ${pA.name} does NOT know ${pB.name} loves them back, and ${pB.name} does NOT know ${pA.name} loves them back. Third-party characters (${thirdPartyList}) also do NOT know.`;
+            } else if (mutInfo.id === 'secret_relationship') {
+                secretBlock += ` Specifically: ${pA.name} and ${pB.name} know, but third-party characters (${thirdPartyList}) have ZERO knowledge of their secret relationship and must treat them solely as "${roleObj.en}".`;
             }
+            epistemicSecrets.push(secretBlock);
         }
     }
 
-    if (secrecyRulesToEnforce.length > 0) {
-        lines.push(
-            '',
-            '[EPISTEMIC & SECRET KNOWLEDGE ISOLATION — ANTI-OMNISCIENCE LAW]',
-            'CRITICAL: Characters do NOT share a hive mind and do NOT have access to this system prompt. You MUST enforce strict information isolation regarding secret or unrequited feelings:',
-            ...secrecyRulesToEnforce,
-        );
+    if (epistemicSecrets.length > 0) {
+        lines.push('');
+        lines.push(`[EPISTEMIC & SECRET KNOWLEDGE ISOLATION — ANTI-OMNISCIENCE LAW]`);
+        lines.push(`You are strictly forbidden from leaking private feelings or secret relationships to characters who do not know about them in-universe:`);
+        for (const sec of epistemicSecrets) {
+            lines.push(sec);
+        }
     }
 
-    lines.push(
-        '',
-        'BEHAVIORAL ENFORCEMENT: Every dialogue line, internal thought, physical distance, form of address, and reaction of every character/NPC MUST strictly match their exact relationship status, affection percentage, and knowledge boundaries above.',
-    );
     return lines.join('\n');
 }
 
 function buildStylePrompt() {
     const s = getSettings();
-    if (!s.masterEnabled || !s.styleEnabled) return '';
+    if (!s.enabled || !s.styleEnabled) return '';
+    const sc = s.styleConfig;
+    const lines = [];
 
-    const cfg = s.styleConfig;
-    const sl = cfg.sliders;
-    const preset = GENRE_PRESETS[cfg.genrePreset] || GENRE_PRESETS.custom;
-    const intensity = Number(cfg.intensity) || 4;
+    const intensityHeader =
+        sc.genreIntensity === 'strict'
+            ? '[MANDATORY NARRATIVE GENRE, AUTHOR VOICE & PACING DIRECTIVES — MAXIMUM ENFORCEMENT]'
+            : sc.genreIntensity === 'soft'
+                ? '[NARRATIVE GENRE & STYLE GUIDANCE]'
+                : '[ACTIVE NARRATIVE GENRE, AUTHOR VOICE & PACING DIRECTIVES]';
 
-    const enforcementMap = {
-        1: 'Subtle background flavor.',
-        2: 'Noticeable stylistic guidance.',
-        3: 'Strong narrative directive.',
-        4: 'STRICT MANDATORY RULE: Prioritize these genre, author voice, and pacing constraints in every paragraph.',
-        5: 'ABSOLUTE UNBREAKABLE LAW: Every single sentence, dialogue line, and scene transition MUST strictly obey the selected genres, author voice, and slider ratios below without exception.',
-    };
+    lines.push(intensityHeader);
 
-    const lines = [
-        `[MANDATORY NARRATIVE GENRE, AUTHOR VOICE & PACING DIRECTIVES — INTENSITY ${intensity}/5]`,
-        `Enforcement Level: ${enforcementMap[intensity]}`,
-    ];
-
-    if (cfg.genrePreset && cfg.genrePreset !== 'custom') {
-        lines.push(`Primary Genre Mode (${preset.label}): ${preset.prompt}`);
-    }
-
-    if (Array.isArray(cfg.activeTags) && cfg.activeTags.length > 0) {
-        const tagPrompts = cfg.activeTags
-            .map(tid => MULTI_GENRE_TAGS.find(t => t.id === tid))
-            .filter(Boolean)
-            .map(t => `${t.label}: ${t.prompt}`);
-        if (tagPrompts.length > 0) {
-            lines.push(`Active Genre Elements:\n- ${tagPrompts.join('\n- ')}`);
+    const activeGenres = [];
+    if (Array.isArray(sc.genres)) {
+        for (const gId of sc.genres) {
+            const found = GENRE_PRESETS.find((g) => g.id === gId);
+            if (found) activeGenres.push(found.en);
         }
     }
-
-    if (cfg.customGenreNotes && cfg.customGenreNotes.trim()) {
-        lines.push(`Custom Genre & Setting Directives: ${cfg.customGenreNotes.trim()}`);
+    if (sc.customGenre && sc.customGenre.trim()) {
+        activeGenres.push(sc.customGenre.trim());
+    }
+    if (activeGenres.length > 0) {
+        lines.push(`• Active Narrative Genres (MUST define atmosphere, conflict, and tone): ${activeGenres.join(' + ')}.`);
     }
 
-    if (cfg.authorVoice && cfg.authorVoice.trim()) {
-        lines.push(
-            `MANDATORY AUTHOR / PROSE STYLE: Write strictly in the literary voice, sentence rhythm, vocabulary, and atmosphere of: ${cfg.authorVoice.trim()}. Emulate their signature narrative technique naturally.`,
-        );
+    if (sc.authorVoice && sc.authorVoice.trim()) {
+        lines.push(`• Target Authorial Voice & Prose Style: Emulate the literary craftsmanship, sentence rhythm, psychological depth, and descriptive texture of ${sc.authorVoice.trim()}.`);
     }
 
-    const pacingDesc = sl.pacing <= 35
-        ? 'SLOW & DELIBERATE: Lingering scenes, detailed micro-moments. Do not skip time or rush plot beats.'
-        : (sl.pacing >= 70 ? 'FAST & DYNAMIC: brisk plot momentum, immediate consequences, high energy.' : 'BALANCED PACING: natural scene progression.');
+    const sl = sc.sliders || DEFAULT_SETTINGS.styleConfig.sliders;
+    lines.push(`• Scene Composition & Pacing Balance (Strict Adherence Required):`);
+    lines.push(`  - Physical Action & Dynamic Movement: ${sl.action}% (${sl.action >= 70 ? 'High kinetic momentum, tangible physical actions in every paragraph' : sl.action <= 30 ? 'Minimal physical action, calm stillness and internal focus' : 'Balanced physical action and natural movement'}).`);
+    lines.push(`  - Sensory & Atmospheric Description: ${sl.description}% (${sl.description >= 70 ? 'Rich sensory immersion, concrete textures, lighting, sounds, and environment' : sl.description <= 30 ? 'Lean, sparse descriptions focusing strictly on immediate events' : 'Moderate vivid sensory grounding'}).`);
+    lines.push(`  - Spoken Dialogue & Subtext: ${sl.dialogue}% (${sl.dialogue >= 70 ? 'Dialogue-driven scene with sharp conversational back-and-forth and distinct voices' : sl.dialogue <= 30 ? 'Sparse spoken words, heavy reliance on silent action and atmosphere' : 'Natural balance between spoken dialogue and narrative prose'}).`);
+    lines.push(`  - Plot Pacing Speed: ${sl.pacing}% (${sl.pacing <= 35 ? 'Deliberate SLOW-BURN pacing: savor the current moment, do NOT skip time or rush emotional milestones' : sl.pacing >= 70 ? 'Fast, plot-forward momentum: advance events decisively without lingering' : 'Measured, organic story progression'}).`);
 
-    const romanceDesc = sl.romanceSpeed <= 35
-        ? 'EXTREME SLOW-BURN: Guarded emotions, subtle tension, earned intimacy over a long time. Never rush confessions or physical leaps.'
-        : (sl.romanceSpeed >= 70 ? 'PASSIONATE & DIRECT: bold romantic chemistry, rapid emotional and physical escalation.' : 'MODERATE ROMANCE DEVELOPMENT: organic romantic progression.');
-
-    const dialogueDesc = sl.dialogueRatio >= 65
-        ? 'DIALOGUE-DRIVEN SCENE: Focus heavily on spoken conversation, subtext, and back-and-forth exchanges.'
-        : (sl.dialogueRatio <= 35 ? 'NARRATIVE & descriptive focus: rich action, atmosphere, and internal perception over long speeches.' : 'BALANCED mix of dialogue and narrative action.');
-
-    const sensoryDesc = sl.sensoryDetail >= 65
-        ? 'HIGH SENSORY IMMERSION: Include concrete textures, lighting, sounds, scents, temperature, and body language.'
-        : (sl.sensoryDetail <= 35 ? 'CONCISE & SPARSE descriptions: focus purely on actions and essential plot.' : 'MODERATE sensory detail.');
-
-    const emotionDesc = sl.emotionalDepth >= 65
-        ? 'DEEP PSYCHOLOGICAL & EMOTIONAL RESONANCE: Explore unspoken feelings, internal contradictions, and emotional weight.'
-        : 'ACTION-ORIENTED surface portrayal without heavy introspection.';
-
-    lines.push(
-        'Mandatory Pacing & Prose Sliders:',
-        `- Scene Pacing (${sl.pacing}/100): ${pacingDesc}`,
-        `- Romance & Intimacy Speed (${sl.romanceSpeed}/100): ${romanceDesc}`,
-        `- Dialogue vs Narration (${sl.dialogueRatio}/100): ${dialogueDesc}`,
-        `- Sensory & Atmospheric Detail (${sl.sensoryDetail}/100): ${sensoryDesc}`,
-        `- Psychological & Emotional Depth (${sl.emotionalDepth}/100): ${emotionDesc}`,
-    );
+    if (sc.customDirectives && sc.customDirectives.trim()) {
+        lines.push(`• Additional Style Directives: ${sc.customDirectives.trim()}`);
+    }
 
     return lines.join('\n');
 }
 
-function updateExtensionPrompts() {
-    try {
-        const s = getSettings();
-        const depth = Number(s.injectionDepth) >= 0 ? Number(s.injectionDepth) : 1;
+function updatePromptInjections() {
+    const ctx = getContext();
+    if (typeof ctx.setExtensionPrompt !== 'function') return;
 
-        const relPrompt = buildRelationshipsPrompt();
-        const stylePrompt = buildStylePrompt();
+    const s = getSettings();
+    const depth = Number.isFinite(Number(s.injectionDepth)) ? Number(s.injectionDepth) : 1;
+    const relPrompt = buildRelationshipsPrompt();
+    const stylePrompt = buildStylePrompt();
 
-        setExtensionPrompt(
-            PROMPT_KEY_REL,
-            relPrompt,
-            extension_prompt_types.IN_CHAT,
-            depth,
-            false,
-            0,
-        );
-
-        setExtensionPrompt(
-            PROMPT_KEY_STYLE,
-            stylePrompt,
-            extension_prompt_types.IN_CHAT,
-            depth,
-            false,
-            0,
-        );
-    } catch (err) {
-        console.error(`[${MODULE_NAME}] updateExtensionPrompts error:`, err);
-    }
+    ctx.setExtensionPrompt(PROMPT_KEY_REL, relPrompt, 1, depth, false, 0);
+    ctx.setExtensionPrompt(PROMPT_KEY_STYLE, stylePrompt, 1, depth, false, 0);
 }
 
 window.bluemoonGenerateInterceptor = async function (chat, contextSize, abort, type) {
     try {
+        updatePromptInjections();
         const s = getSettings();
-        if (!s.masterEnabled) return;
-        updateExtensionPrompts();
+        if (!s.enabled || !Array.isArray(chat) || chat.length === 0) return;
+
+        const blocks = [];
+        const relPrompt = buildRelationshipsPrompt();
+        const stylePrompt = buildStylePrompt();
+        if (relPrompt) blocks.push(relPrompt);
+        if (stylePrompt) blocks.push(stylePrompt);
+        if (blocks.length === 0) return;
+
+        const combined = `\n\n${blocks.join('\n\n')}\n`;
+        const marker = '[MANDATORY CHARACTER & NPC RELATIONSHIP NETWORK';
+        const styleMarker = 'NARRATIVE GENRE';
+
+        const alreadyInjected = chat.some(
+            (m) => typeof m?.mes === 'string' && (m.mes.includes(marker) || m.mes.includes(styleMarker))
+        );
+        if (alreadyInjected) return;
+
+        const targetIndex = Math.max(0, chat.length - 1);
+        if (chat[targetIndex] && typeof chat[targetIndex].mes === 'string') {
+            chat[targetIndex].mes += combined;
+        }
     } catch (err) {
         console.error(`[${MODULE_NAME}] Interceptor error:`, err);
     }
 };
 
-function populateConnectionProfiles() {
-    const ctx = getContext();
-    const select = $('#bm2_connection_profile');
-    if (!select.length) return;
-
-    const currentVal = getSettings().connectionProfileId || '';
-    select.empty();
-    select.append('<option value="">🔄 Текущее активное подключение SillyTavern</option>');
-
-    const profiles = ctx.extensionSettings?.connectionManager?.profiles || [];
-    for (const p of profiles) {
-        if (p && p.id && p.name) {
-            const selected = p.id === currentVal ? 'selected' : '';
-            select.append(`<option value="${escapeHtml(p.id)}" ${selected}>🔌 ${escapeHtml(p.name)}</option>`);
-        }
-    }
-}
-
-async function runModelRequest(systemPrompt, userPrompt) {
+async function runLLMGenerate(systemPrompt, userPrompt) {
     const ctx = getContext();
     const s = getSettings();
+    const profileId = (s.connectionProfileId || '').trim();
 
-    if (s.connectionProfileId && ctx.ConnectionManagerRequestService?.sendRequest) {
+    if (profileId && ctx.ConnectionManagerRequestService && typeof ctx.ConnectionManagerRequestService.sendRequest === 'function') {
         try {
-            const response = await ctx.ConnectionManagerRequestService.sendRequest(
-                s.connectionProfileId,
-                [
-                    { role: 'system', content: systemPrompt },
-                    { role: 'user', content: userPrompt },
-                ],
-                650,
-                { extractData: true, includePreset: false, includeInstruct: false },
-            );
-            if (typeof response === 'string') return response;
-            if (response?.content) return response.content;
+            const messages = [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userPrompt },
+            ];
+            const res = await ctx.ConnectionManagerRequestService.sendRequest(profileId, messages, 950);
+            if (typeof res === 'string') return res;
+            if (res?.content) return res.content;
+            if (res?.choices?.[0]?.message?.content) return res.choices[0].message.content;
         } catch (err) {
-            console.warn(`[${MODULE_NAME}] ConnectionManager profile failed, falling back to generateRaw:`, err);
+            console.warn(`[${MODULE_NAME}] ConnectionManager profile fallback to generateRaw:`, err);
         }
     }
 
@@ -785,216 +633,172 @@ async function runModelRequest(systemPrompt, userPrompt) {
             prompt: userPrompt,
             quietToLoud: false,
         });
-        return typeof res === 'string' ? res : '';
+        return typeof res === 'string' ? res : String(res || '');
     }
 
-    throw new Error('No generation method available in SillyTavern context');
+    if (typeof ctx.generateQuietPrompt === 'function') {
+        return await ctx.generateQuietPrompt(`${systemPrompt}\n\n${userPrompt}`, false, false);
+    }
+
+    throw new Error('No SillyTavern generation method available');
 }
 
-async function analyzeAllRelationshipsDelta(manualTrigger = false) {
+async function analyzeAllRelationshipsWithLLM(manualTrigger = false) {
+    if (isAnalyzing) return;
     const s = getSettings();
-    if (!s.masterEnabled || !s.relEnabled) return;
+    if (!s.enabled || !s.relEnabled) return;
     if (!manualTrigger && !s.relAutoAnalyze) return;
-    if (isAnalyzingRel) return;
 
     const ctx = getContext();
     const chat = ctx.chat || [];
     if (chat.length < 1) {
-        if (manualTrigger) toastr.info('В чате пока нет сообщений для анализа.', 'BlueMoon');
+        if (manualTrigger) toastr.info('Чат пока пуст для анализа.', 'BlueMoon');
         return;
     }
 
-    const profile = getActiveProfile();
-    if (!profile.relationships.length) return;
+    const profile = getProfileData();
+    ensureCoreParticipants(profile);
 
-    const nodeMap = Object.fromEntries(profile.nodes.map(n => [n.id, n.name]));
-    const recentMsgs = chat.slice(-4).map(m => `${m.name}: ${m.mes}`).join('\n---\n');
+    if (profile.participants.length < 2) return;
 
-    const pairsSummary = profile.relationships.map(r => ({
-        relId: r.id,
-        pair: `${nodeMap[r.from] || r.from} <-> ${nodeMap[r.to] || r.to}`,
-        currentRole: r.role,
-        currentMutuality: r.mutuality || 'none',
-        currentAffection: Number(r.affection) || 0,
-    }));
+    isAnalyzing = true;
+    $('#bm2_btn_analyze_now').prop('disabled', true).text('⏳ Анализ...');
 
-    const validRoleIds = getAllRoles().map(r => r.id).join(', ');
-    const validMutIds = CRUSH_MUTUALITY.map(m => m.id).join(', ');
+    try {
+        const recentMessages = chat
+            .slice(-6)
+            .map((m) => `${m.name || (m.is_user ? 'User' : 'Char')}: ${(m.mes || '').slice(0, 750)}`)
+            .join('\n---\n');
 
-    const sysPrompt = `You are an objective relationship & social network analyzer for an interactive story.
-Analyze the latest scene and determine which character pairs (including NPCs!) interacted, were mentioned, or experienced a shift in relationship affection, status, romantic subtext/crush mutuality, or story timeline.
-Current Story Date: "${profile.storyDate}"
-Existing Relationship Pairs:
-${JSON.stringify(pairsSummary, null, 2)}
+        const pMap = new Map(profile.participants.map((p) => [p.id, p]));
 
-Valid role IDs if a relationship status fundamentally changed: [${validRoleIds}]
-Valid mutuality IDs for romantic subtext / secret or unrequited crush: [${validMutIds}]
+        for (let i = 0; i < profile.participants.length; i++) {
+            for (let j = i + 1; j < profile.participants.length; j++) {
+                getOrCreateRelationship(profile, profile.participants[i].id, profile.participants[j].id);
+            }
+        }
 
-Respond strictly with valid JSON only (no markdown fences):
+        const existingPairsText = profile.relationships
+            .map((rel) => {
+                const pA = pMap.get(rel.sourceId);
+                const pB = pMap.get(rel.targetId);
+                if (!pA || !pB) return null;
+                return `- pairId: "${rel.id}" (${pA.name} ↔ ${pB.name}), current roleId: "${rel.roleId}", mutuality: "${rel.mutuality || 'none'}", current affinity: ${rel.affinity}, summary: "${rel.summary || ''}"`;
+            })
+            .filter(Boolean)
+            .join('\n');
+
+        const allowedRoles = getAllRoles(profile).map((r) => r.id).join(', ');
+        const allowedMutuality = CRUSH_MUTUALITY.map((m) => m.id).join(', ');
+
+        const sysPrompt = `You are an objective relationship & social network analyzer for an interactive story.
+Analyze the latest chat excerpt and check ALL character & NPC pairs listed below.
+Update ONLY the pairs that interacted, were mentioned together, or experienced an emotional shift in this scene.
+Remember: secret or unrequited feelings must stay secret unless explicitly confessed or exposed in the scene!
+Return ONLY valid JSON (no markdown fences) matching this exact structure:
 {
-  "storyDate": "<updated story date/day in Russian if time passed, or keep '${profile.storyDate}'>",
+  "storyDate": "string (updated story day/date in Russian if time passed, or keep current '${profile.currentStoryDate}')",
   "updates": [
     {
-      "relId": "<exact relId from the list>",
-      "delta": <integer from -15 to +15 representing affection change in this scene>,
-      "reason": "<short explanation in Russian (max 10 words)>",
-      "newMemory": "<if an important milestone happened between this pair, 1 short sentence in Russian, otherwise empty string>",
-      "newRole": "<optional: new role ID ONLY if their status officially changed in this scene, otherwise empty string>",
-      "newMutuality": "<optional: new mutuality ID if secret/unrequited/mutual crush changed, otherwise empty string>"
+      "pairId": "exact pairId from the list",
+      "delta": number (-15 to +15 integer change in affinity),
+      "roleId": "one of [${allowedRoles}]",
+      "mutuality": "one of [${allowedMutuality}]",
+      "summary": "1 concise sentence in Russian describing their current dynamic",
+      "significantEvent": "short 1-sentence milestone in Russian ONLY if a major memorable event happened between them in the last message, otherwise empty string"
     }
   ]
 }`;
 
-    isAnalyzingRel = true;
-    if (manualTrigger) {
-        toastr.info('ИИ сканирует связи всех персонажей и NPC...', 'BlueMoon');
-    }
+        const userPrompt = `Current Story Date: ${profile.currentStoryDate}
+All Monitored Character & NPC Pairs:
+${existingPairsText}
 
-    try {
-        const raw = await runModelRequest(sysPrompt, `Latest scene messages:\n${recentMsgs}`);
-        const match = raw.match(/\{[\s\S]*\}/);
-        if (!match) {
-            if (manualTrigger) toastr.warning('ИИ не вернул JSON анализа.', 'BlueMoon');
-            return;
-        }
+Recent Scene Excerpt:
+${recentMessages}
 
-        const parsed = JSON.parse(match[0]);
+Output JSON only:`;
+
+        const raw = await runLLMGenerate(sysPrompt, userPrompt);
+        const jsonMatch = raw.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error('JSON not found in model response');
+
+        const parsed = JSON.parse(jsonMatch[0]);
         if (parsed.storyDate && typeof parsed.storyDate === 'string' && parsed.storyDate.trim()) {
-            profile.storyDate = parsed.storyDate.trim().slice(0, 40);
+            profile.currentStoryDate = parsed.storyDate.trim();
         }
 
-        const updates = Array.isArray(parsed.updates) ? parsed.updates : [];
-        let changedCount = 0;
-        const summaryToasts = [];
+        let updatedCount = 0;
+        if (Array.isArray(parsed.updates)) {
+            for (const upd of parsed.updates) {
+                const rel = profile.relationships.find((r) => r.id === upd.pairId);
+                if (!rel) continue;
 
-        for (const u of updates) {
-            const rel = profile.relationships.find(r => r.id === u.relId);
-            if (!rel) continue;
-
-            let delta = Number(u.delta) || 0;
-            delta = Math.max(-15, Math.min(15, Math.round(delta)));
-
-            const nameA = nodeMap[rel.from] || rel.from;
-            const nameB = nodeMap[rel.to] || rel.to;
-            let pairTouched = false;
-
-            if (delta !== 0) {
-                rel.affection = Math.max(-100, Math.min(100, (Number(rel.affection) || 0) + delta));
-                pairTouched = true;
-            }
-            if (u.reason && typeof u.reason === 'string' && u.reason.trim()) {
-                rel.lastReason = u.reason.trim();
-                pairTouched = true;
-            }
-            if (u.newRole && getAllRoles().some(r => r.id === u.newRole) && u.newRole !== rel.role) {
-                rel.role = u.newRole;
-                pairTouched = true;
-            }
-            if (u.newMutuality && CRUSH_MUTUALITY.some(m => m.id === u.newMutuality)) {
-                rel.mutuality = u.newMutuality;
-                pairTouched = true;
-            }
-            if (u.newMemory && typeof u.newMemory === 'string' && u.newMemory.trim().length > 4) {
-                if (!Array.isArray(rel.memories)) rel.memories = [];
-                rel.memories.push({
-                    date: profile.storyDate,
-                    text: u.newMemory.trim().slice(0, 160),
-                });
-                pairTouched = true;
-            }
-
-            if (pairTouched) {
-                rel.lastStoryDate = profile.storyDate;
-                changedCount++;
-                const sign = delta > 0 ? `+${delta}%` : `${delta}%`;
-                summaryToasts.push(`${nameA} ↔ ${nameB}: ${sign} (${rel.lastReason || 'обновлено'})`);
-            }
-        }
-
-        saveSettingsDebounced();
-        updateExtensionPrompts();
-
-        if ($('#bm2_overlay').hasClass('bm2_visible')) {
-            renderRelationshipsTab();
-            renderGraphCanvas();
-        }
-
-        if (changedCount > 0) {
-            toastr.success(summaryToasts.slice(0, 3).join(' | '), `BlueMoon (${profile.storyDate})`);
-        } else if (manualTrigger) {
-            toastr.info('Значимых изменений в отношениях за последнюю сцену не обнаружено.', 'BlueMoon');
-        }
-    } catch (err) {
-        console.error(`[${MODULE_NAME}] Auto relationship analysis error:`, err);
-        if (manualTrigger) {
-            toastr.error('Ошибка ИИ-анализа связей. Проверьте консоль.', 'BlueMoon');
-        }
-    } finally {
-        isAnalyzingRel = false;
-    }
-}
-
-function applyThemeToModal() {
-    const s = getSettings();
-    const t = s.activeTheme === 'custom'
-        ? s.customTheme
-        : (BUILTIN_THEMES[s.activeTheme] || BUILTIN_THEMES.bluemoon_midnight);
-
-    const root = document.getElementById('bm2_overlay');
-    if (!root) return;
-
-    root.style.setProperty('--bm2-bg', t.bg);
-    root.style.setProperty('--bm2-panel', t.panel);
-    root.style.setProperty('--bm2-text', t.text);
-    root.style.setProperty('--bm2-accent', t.accent);
-    root.style.setProperty('--bm2-border', t.border);
-    root.style.setProperty('--bm2-glow', t.glow || 'rgba(104, 162, 255, 0.24)');
-}
-
-function compressImageFileToDataUrl(file, maxSize = 160) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const img = new Image();
-            img.onload = () => {
-                const canvas = document.createElement('canvas');
-                let w = img.width;
-                let h = img.height;
-                if (w > h) {
-                    if (w > maxSize) {
-                        h = Math.round((h * maxSize) / w);
-                        w = maxSize;
-                    }
-                } else {
-                    if (h > maxSize) {
-                        w = Math.round((w * maxSize) / h);
-                        h = maxSize;
+                const delta = Number(upd.delta) || 0;
+                const oldAff = rel.affinity;
+                if (delta !== 0) {
+                    rel.affinity = clampAffinity(rel.affinity + Math.max(-20, Math.min(20, delta)));
+                }
+                if (upd.roleId && getAllRoles(profile).some((r) => r.id === upd.roleId)) {
+                    rel.roleId = upd.roleId;
+                }
+                if (upd.mutuality && CRUSH_MUTUALITY.some((m) => m.id === upd.mutuality)) {
+                    rel.mutuality = upd.mutuality;
+                }
+                if (upd.summary && typeof upd.summary === 'string') {
+                    rel.summary = upd.summary.trim();
+                }
+                if (upd.significantEvent && typeof upd.significantEvent === 'string' && upd.significantEvent.trim().length > 4) {
+                    const evText = upd.significantEvent.trim();
+                    const isDup = rel.events.some((e) => e.text === evText);
+                    if (!isDup) {
+                        rel.events.push({
+                            date: profile.currentStoryDate || 'Событие',
+                            text: evText,
+                        });
                     }
                 }
-                canvas.width = w;
-                canvas.height = h;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0, w, h);
-                resolve(canvas.toDataURL('image/jpeg', 0.84));
-            };
-            img.onerror = reject;
-            img.src = e.target.result;
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-    });
+                if (delta !== 0 || upd.significantEvent) updatedCount++;
+
+                const pA = pMap.get(rel.sourceId);
+                const pB = pMap.get(rel.targetId);
+                if (pA && pB && rel.affinity !== oldAff) {
+                    const sign = rel.affinity - oldAff > 0 ? `+${rel.affinity - oldAff}%` : `${rel.affinity - oldAff}%`;
+                    toastr.info(`${pA.name} ↔ ${pB.name}: ${sign} (теперь ${formatAffinity(rel.affinity)})`, 'BlueMoon: Связи');
+                }
+            }
+        }
+
+        saveSettings();
+        updatePromptInjections();
+        if ($('#bm2_overlay').is(':visible')) {
+            renderRelationshipsTab();
+            renderGraphNodes();
+        }
+        if (manualTrigger && updatedCount === 0) {
+            toastr.success('Анализ завершён: без резких сдвигов в последней сцене.', 'BlueMoon');
+        }
+    } catch (err) {
+        console.error(`[${MODULE_NAME}] Relationship analysis failed:`, err);
+        if (manualTrigger) {
+            toastr.error(`Ошибка анализа: ${err.message}`, 'BlueMoon');
+        }
+    } finally {
+        isAnalyzing = false;
+        $('#bm2_btn_analyze_now').prop('disabled', false).text('🔍 Анализ всех связей');
+    }
 }
 
-function exportRelationshipsToJson() {
+function exportRelationshipsJson() {
     try {
-        const s = getSettings();
-        const profile = getActiveProfile();
-        const charName = getActiveCharacterName().replace(/[^a-zA-Zа-яА-Я0-9_-]/g, '_');
+        const profile = getProfileData();
+        const ctx = getContext();
+        const charName = (ctx.name2 || 'character').replace(/[^a-zA-Zа-яА-Я0-9_-]/g, '_');
         const payload = {
-            bluemoon_version: '2.5.3',
+            bluemoon_export_version: '2.5.4',
             exportedAt: new Date().toISOString(),
-            characterName: getActiveCharacterName(),
-            customRoles: s.customRoles || [],
+            characterName: ctx.name2 || '',
+            userName: ctx.name1 || '',
             profile: safeClone(profile),
         };
 
@@ -1008,412 +812,392 @@ function exportRelationshipsToJson() {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-
-        toastr.success('Сеть отношений, NPC и свои статусы экспортированы в JSON!', 'BlueMoon');
+        toastr.success('Файл со всеми связями и NPC скачан.', 'BlueMoon: Экспорт');
     } catch (err) {
         console.error(`[${MODULE_NAME}] Export error:`, err);
-        toastr.error('Не удалось экспортировать JSON.', 'BlueMoon');
+        toastr.error('Не удалось экспортировать связи.', 'BlueMoon');
     }
 }
 
-function importRelationshipsFromJson(file) {
+function importRelationshipsJsonFile(file) {
+    if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => {
+    reader.onload = (e) => {
         try {
-            const data = JSON.parse(ev.target.result);
-            const incoming = data.profile || data;
-            if (!incoming || !Array.isArray(incoming.nodes) || !Array.isArray(incoming.relationships)) {
-                toastr.error('Неверный формат файла: не найдены поля nodes и relationships.', 'BlueMoon');
+            const parsed = JSON.parse(String(e.target.result || '{}'));
+            const incomingProfile = parsed.profile || parsed;
+
+            if (!Array.isArray(incomingProfile.participants) || !Array.isArray(incomingProfile.relationships)) {
+                toastr.error('В выбранном JSON нет списков participants и relationships.', 'BlueMoon: Импорт');
                 return;
             }
 
-            const s = getSettings();
-            if (Array.isArray(data.customRoles)) {
-                for (const cr of data.customRoles) {
-                    if (cr && cr.id && !s.customRoles.some(x => x.id === cr.id)) {
-                        s.customRoles.push(cr);
-                    }
-                }
-            }
-
-            const key = getActiveProfileKey();
-            const current = getActiveProfile();
-
-            const replaceAll = confirm(
-                'Нажмите «ОК», чтобы ПОЛНОСТЬЮ заменить текущие отношения и NPC данными из файла.\nНажмите «Отмена», чтобы ОБЪЕДИНИТЬ (добавить недостающих NPC и связи к текущим).',
+            const replaceAll = window.confirm(
+                'Заменить текущие связи и NPC полностью на данные из файла?\n\n[ОК] — Полностью заменить из файла\n[Отмена] — Объединить (добавить недостающих NPC, статусы и связи к текущим)'
             );
 
+            const s = getSettings();
+            const key = getActiveProfileKey();
+            const currentProfile = getProfileData();
+
             if (replaceAll) {
-                s.characterProfiles[key] = {
-                    storyDate: incoming.storyDate || current.storyDate || 'День 1',
-                    nodes: safeClone(incoming.nodes),
-                    relationships: safeClone(incoming.relationships),
+                s.profiles[key] = {
+                    currentStoryDate: incomingProfile.currentStoryDate || currentProfile.currentStoryDate || 'День 1',
+                    participants: safeClone(incomingProfile.participants),
+                    relationships: safeClone(incomingProfile.relationships),
+                    customRoles: safeClone(incomingProfile.customRoles || []),
                 };
+                ensureCoreParticipants(s.profiles[key]);
             } else {
-                if (incoming.storyDate) current.storyDate = incoming.storyDate;
-                for (const n of incoming.nodes) {
-                    if (!current.nodes.some(existing => existing.id === n.id || existing.name === n.name)) {
-                        current.nodes.push(safeClone(n));
+                if (incomingProfile.currentStoryDate) {
+                    currentProfile.currentStoryDate = incomingProfile.currentStoryDate;
+                }
+                if (Array.isArray(incomingProfile.customRoles)) {
+                    for (const cr of incomingProfile.customRoles) {
+                        if (!currentProfile.customRoles.some((r) => r.id === cr.id)) {
+                            currentProfile.customRoles.push(safeClone(cr));
+                        }
                     }
                 }
-                for (const r of incoming.relationships) {
-                    const exists = current.relationships.some(
-                        ex => (ex.from === r.from && ex.to === r.to) || (ex.from === r.to && ex.to === r.from),
+                for (const incP of incomingProfile.participants) {
+                    const exists = currentProfile.participants.find(
+                        (p) => p.id === incP.id || (p.name.toLowerCase() === (incP.name || '').toLowerCase() && p.role === incP.role)
                     );
                     if (!exists) {
-                        current.relationships.push(safeClone(r));
+                        currentProfile.participants.push(safeClone(incP));
+                    } else if (incP.customAvatar && incP.avatar) {
+                        exists.avatar = incP.avatar;
+                        exists.customAvatar = true;
+                    }
+                }
+                for (const incR of incomingProfile.relationships) {
+                    const existingRel = currentProfile.relationships.find((r) => r.id === incR.id);
+                    if (!existingRel) {
+                        currentProfile.relationships.push(safeClone(incR));
+                    } else {
+                        existingRel.affinity = clampAffinity(incR.affinity);
+                        existingRel.roleId = incR.roleId || existingRel.roleId;
+                        existingRel.mutuality = incR.mutuality || existingRel.mutuality || 'none';
+                        existingRel.summary = incR.summary || existingRel.summary;
+                        if (Array.isArray(incR.events)) {
+                            for (const ev of incR.events) {
+                                if (!existingRel.events.some((x) => x.text === ev.text)) {
+                                    existingRel.events.push(ev);
+                                }
+                            }
+                        }
                     }
                 }
             }
 
-            const updatedProfile = getActiveProfile();
-            selectedRelId = updatedProfile.relationships[0]?.id || null;
-            saveSettingsDebounced();
-            updateExtensionPrompts();
+            selectedRelId = null;
+            saveSettings();
+            updatePromptInjections();
             renderRelationshipsTab();
-            renderGraphCanvas();
-            toastr.success('Отношения и NPC успешно импортированы!', 'BlueMoon');
+            renderGraphNodes();
+            toastr.success('Отношения и NPC успешно импортированы!', 'BlueMoon: Импорт');
         } catch (err) {
-            console.error(`[${MODULE_NAME}] Import JSON error:`, err);
-            toastr.error('Ошибка чтения JSON файла.', 'BlueMoon');
+            console.error(`[${MODULE_NAME}] Import error:`, err);
+            toastr.error(`Ошибка чтения JSON: ${err.message}`, 'BlueMoon: Импорт');
         }
     };
     reader.readAsText(file);
 }
 
-function buildFallbackSettingsHtml() {
-    return `
-    <div class="bluemoon-v2-settings">
-        <div class="inline-drawer">
-            <div class="inline-drawer-toggle inline-drawer-header">
-                <b>🌙 BlueMoon: Relationships, Graph & Style Engine</b>
-                <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
-            </div>
-            <div class="inline-drawer-content">
-                <div class="bm2_settings_block">
-                    <label class="checkbox_label" for="bm2_master_enabled">
-                        <input id="bm2_master_enabled" type="checkbox" />
-                        <span>Включить расширение BlueMoon</span>
-                    </label>
-                    <label class="checkbox_label" for="bm2_rel_enabled">
-                        <input id="bm2_rel_enabled" type="checkbox" />
-                        <span>Инъекция сети отношений и воспоминаний в промпт</span>
-                    </label>
-                    <label class="checkbox_label" for="bm2_rel_auto_analyze">
-                        <input id="bm2_rel_auto_analyze" type="checkbox" />
-                        <span>Авто-анализ всех связей (Персонажи + NPC) после ответа ИИ</span>
-                    </label>
-                    <label class="checkbox_label" for="bm2_isolate_per_chat">
-                        <input id="bm2_isolate_per_chat" type="checkbox" />
-                        <span>Изолировать связи для каждого чата (если выкл — общие для всех веток персонажа)</span>
-                    </label>
-                    <label class="checkbox_label" for="bm2_style_enabled">
-                        <input id="bm2_style_enabled" type="checkbox" />
-                        <span>Строгая инъекция жанра, авторского слога и ползунков стиля</span>
-                    </label>
-                    <hr />
-                    <div class="bm2_settings_row">
-                        <label for="bm2_connection_profile">Профиль подключения для ИИ-анализа связей:</label>
-                        <select id="bm2_connection_profile" class="text_pole">
-                            <option value="">🔄 Текущее активное подключение SillyTavern</option>
-                        </select>
-                    </div>
-                    <div class="bm2_settings_row">
-                        <label for="bm2_injection_depth">Глубина инъекции в чат (Depth):</label>
-                        <input id="bm2_injection_depth" type="number" class="text_pole" min="0" max="20" value="1" />
-                    </div>
-                    <hr />
-                    <div class="bm2_settings_row">
-                        <button id="bm2_open_modal_from_settings" class="menu_button interactable" type="button">
-                            🌙 Открыть студию BlueMoon
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>`;
+function compressImageFileToDataUrl(file, maxSize = 160, quality = 0.82) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = maxSize;
+                canvas.height = maxSize;
+                const ctx = canvas.getContext('2d');
+                const minSide = Math.min(img.width, img.height);
+                const sx = (img.width - minSide) / 2;
+                const sy = (img.height - minSide) / 2;
+                ctx.drawImage(img, sx, sy, minSide, minSide, 0, 0, maxSize, maxSize);
+                resolve(canvas.toDataURL('image/jpeg', quality));
+            };
+            img.onerror = reject;
+            img.src = e.target.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
 }
 
-function buildModalHtml() {
+function createModalHtml() {
     return `
-    <div id="bm2_overlay" class="bm2_overlay">
-        <div class="bm2_modal">
-            <div class="bm2_header">
-                <div class="bm2_title_wrap">
-                    <span class="bm2_moon_logo">🌙</span>
-                    <div>
-                        <h3 class="bm2_title">BlueMoon Studio</h3>
-                        <span id="bm2_subtitle_char" class="bm2_subtitle">Отношения, Граф и Стиль</span>
+<div id="bm2_overlay" data-bm-theme="moonlight">
+    <div id="bm2_modal">
+        <div class="bm2_topbar">
+            <div class="bm2_brand">
+                <span>🌙</span>
+                <span>BlueMoon</span>
+            </div>
+            <div class="bm2_top_actions">
+                <button id="bm2_btn_preview_prompt" class="bm2_icon_btn" title="Посмотреть активный промпт">👁️ Промпт</button>
+                <button id="bm2_btn_close" class="bm2_close_btn" title="Закрыть">✕</button>
+            </div>
+        </div>
+
+        <div class="bm2_tabs">
+            <button class="bm2_tab active" data-tab="rel">💞 Связи</button>
+            <button class="bm2_tab" data-tab="graph">🕸️ Древо</button>
+            <button class="bm2_tab" data-tab="style">🎚️ Стиль</button>
+            <button class="bm2_tab" data-tab="themes">🎨 Темы</button>
+        </div>
+
+        <div class="bm2_body">
+            <!-- TAB 1: RELATIONSHIPS -->
+            <div id="bm2_pane_rel" class="bm2_pane active">
+                <div class="bm2_date_bar">
+                    <div class="bm2_date_left">
+                        <span>📅</span>
+                        <input id="bm2_story_date_input" class="bm2_date_input" type="text" placeholder="День 1 / Дата..." />
+                        <button id="bm2_btn_next_day" class="bm2_mini_btn" title="Прибавить 1 день">+1 дн.</button>
+                    </div>
+                    <div class="bm2_toolbar_btns">
+                        <button id="bm2_btn_analyze_now" class="bm2_mini_btn">🔍 Анализ всех связей</button>
+                        <button id="bm2_btn_export_json" class="bm2_mini_btn" title="Скачать файл со всеми связями и NPC">📥 Экспорт</button>
+                        <button id="bm2_btn_import_json" class="bm2_mini_btn" title="Загрузить связи и NPC из JSON файла">📤 Импорт</button>
                     </div>
                 </div>
-                <div class="bm2_header_actions">
-                    <button id="bm2_preview_prompt_btn" class="bm2_icon_btn" title="Посмотреть активный системный промпт">👁️ Промпт</button>
-                    <button id="bm2_close_btn" class="bm2_close_btn" title="Закрыть">✕</button>
+
+                <!-- PARTICIPANTS & NPCs -->
+                <div class="bm2_card">
+                    <div class="bm2_card_title">
+                        <span>👥 Персонажи и NPC (нажми 📷 для фото из галереи)</span>
+                    </div>
+                    <div id="bm2_participants_strip" class="bm2_participants_strip"></div>
+                    <div class="bm2_add_npc_row">
+                        <input id="bm2_new_npc_name" class="bm2_input" type="text" placeholder="Имя нового NPC (друг, соперник, брат...)" />
+                        <button id="bm2_btn_add_npc" class="bm2_btn">+ Добавить</button>
+                    </div>
+                    <input id="bm2_hidden_file_input" type="file" accept="image/*" style="display:none;" />
+                    <input id="bm2_hidden_import_input" type="file" accept=".json,application/json" style="display:none;" />
                 </div>
-            </div>
 
-            <div class="bm2_tabs">
-                <button class="bm2_tab bm2_tab_active" data-tab="tab_rel">💞 Связи</button>
-                <button class="bm2_tab" data-tab="tab_graph">🕸️ Древо</button>
-                <button class="bm2_tab" data-tab="tab_style">🎚️ Стиль</button>
-                <button class="bm2_tab" data-tab="tab_themes">🎨 Темы</button>
-            </div>
-
-            <div class="bm2_body">
-                <!-- TAB 1: RELATIONSHIPS -->
-                <div id="tab_rel" class="bm2_tab_pane bm2_pane_active">
-                    <div class="bm2_top_strip">
-                        <div class="bm2_date_box">
-                            <span>📅 Дата сюжета:</span>
-                            <input id="bm2_story_date_input" type="text" class="bm2_input bm2_date_input" placeholder="День 1 / 14 октября" />
-                        </div>
-                        <div class="bm2_top_actions">
-                            <button id="bm2_ai_analyze_now" class="bm2_btn bm2_btn_accent">✨ ИИ-скан всех связей</button>
-                            <button id="bm2_export_json_btn" class="bm2_btn" title="Скачать все связи и NPC в JSON">📥 Экспорт</button>
-                            <button id="bm2_import_json_btn" class="bm2_btn" title="Загрузить связи и NPC из JSON">📤 Импорт</button>
-                            <input id="bm2_import_file_input" type="file" accept=".json,application/json" style="display:none;" />
-                        </div>
+                <!-- STRUCTURED RELATIONSHIP NAVIGATOR & PAIR SELECTOR -->
+                <div class="bm2_card">
+                    <div class="bm2_card_title">
+                        <span>🗂️ Навигатор связей персонажа</span>
+                        <button id="bm2_btn_toggle_new_link" class="bm2_mini_btn">+ Добавить связь вручную</button>
                     </div>
 
-                    <!-- STRUCTURED DIRECTORY & PAIR SELECTOR -->
-                    <div class="bm2_card">
-                        <div class="bm2_dir_header_row">
-                            <span class="bm2_label" style="margin:0;">🗂️ Навигатор связей</span>
-                            <div class="bm2_dir_header_btns">
-                                <button id="bm2_toggle_group_mode" class="bm2_mini_btn" title="Переключить группировку списка">📂 По разделам</button>
-                                <button id="bm2_open_new_link_drawer" class="bm2_mini_btn bm2_mini_btn_accent">+ Добавить связь вручную</button>
-                            </div>
-                        </div>
-
-                        <!-- Filter pills by character -->
-                        <div id="bm2_char_filter_bar" class="bm2_filter_bar"></div>
-
-                        <!-- Manual new link drawer (collapsible) -->
-                        <div id="bm2_new_link_drawer" class="bm2_new_link_drawer" style="display:none;">
-                            <div class="bm2_label">🔗 Создать новую связь между участниками</div>
-                            <div class="bm2_grid_2">
-                                <div>
-                                    <label class="bm2_sublabel">Первый персонаж (Кто):</label>
-                                    <select id="bm2_new_link_from" class="bm2_select"></select>
-                                </div>
-                                <div>
-                                    <label class="bm2_sublabel">Второй персонаж (С кем):</label>
-                                    <select id="bm2_new_link_to" class="bm2_select"></select>
-                                </div>
-                            </div>
-                            <div class="bm2_grid_2" style="margin-top:6px;">
-                                <div>
-                                    <label class="bm2_sublabel">Начальный статус связи:</label>
-                                    <select id="bm2_new_link_role" class="bm2_select"></select>
-                                </div>
-                                <div>
-                                    <label class="bm2_sublabel">Подтип влюблённости / взаимность:</label>
-                                    <select id="bm2_new_link_mutuality" class="bm2_select"></select>
-                                </div>
-                            </div>
-                            <div class="bm2_row" style="margin-top:8px;">
-                                <button id="bm2_confirm_new_link_btn" class="bm2_btn bm2_btn_accent" style="flex:1;">✅ Создать / Открыть связь</button>
-                                <button id="bm2_cancel_new_link_btn" class="bm2_btn bm2_btn_small">Отмена</button>
-                            </div>
-                        </div>
-
-                        <!-- Visual structured directory of connections -->
-                        <div id="bm2_visual_directory" class="bm2_directory_box"></div>
-
-                        <!-- Grouped dropdown + delete button -->
-                        <div class="bm2_row" style="margin-top:8px;">
-                            <select id="bm2_rel_selector" class="bm2_select"></select>
-                            <button id="bm2_delete_rel_btn" class="bm2_btn bm2_btn_danger bm2_btn_small" title="Удалить выбранную связь">🗑️</button>
-                        </div>
-
-                        <!-- Pair Avatars & Photo upload -->
-                        <div id="bm2_pair_avatars_row" class="bm2_pair_avatars_row"></div>
-                        <input id="bm2_hidden_file_input" type="file" accept="image/*" style="display:none;" />
-
-                        <!-- Status & Mutuality Editor -->
-                        <div class="bm2_grid_2">
+                    <!-- Manual link creation drawer -->
+                    <div id="bm2_new_link_drawer" class="bm2_new_link_drawer" style="display:none;">
+                        <div class="bm2_new_link_grid">
                             <div>
-                                <div class="bm2_row_between">
-                                    <label class="bm2_label">Основной статус связи</label>
-                                    <button id="bm2_create_custom_role_btn" class="bm2_link_btn" title="Создать свой собственный статус">➕ Свой статус вручную</button>
-                                </div>
-                                <select id="bm2_rel_role" class="bm2_select"></select>
+                                <span class="bm2_sub_label">Участник 1</span>
+                                <select id="bm2_new_link_a" class="bm2_select"></select>
                             </div>
-                            <div id="bm2_mutuality_box">
-                                <label class="bm2_label">💘 Подтип влюблённости / симпатии</label>
-                                <select id="bm2_rel_mutuality" class="bm2_select"></select>
+                            <div>
+                                <span class="bm2_sub_label">Участник 2</span>
+                                <select id="bm2_new_link_b" class="bm2_select"></select>
+                            </div>
+                        </div>
+                        <div class="bm2_new_link_grid" style="margin-top:6px;">
+                            <div>
+                                <span class="bm2_sub_label">Статус связи</span>
+                                <select id="bm2_new_link_role" class="bm2_select"></select>
+                            </div>
+                            <div>
+                                <span class="bm2_sub_label">Начальная шкала (%)</span>
+                                <input id="bm2_new_link_aff" class="bm2_input" type="number" min="-100" max="100" value="0" />
+                            </div>
+                        </div>
+                        <div style="margin-top:6px;">
+                            <span class="bm2_sub_label">💘 Влюблённость / Тайна чувств (опционально)</span>
+                            <select id="bm2_new_link_mutuality" class="bm2_select"></select>
+                        </div>
+                        <div style="display:flex; gap:6px; margin-top:8px;">
+                            <button id="bm2_btn_create_link_confirm" class="bm2_btn" style="flex:1;">✅ Создать / Открыть связь</button>
+                        </div>
+                    </div>
+
+                    <!-- Character Filter Pills & Grouping Toggle -->
+                    <div class="bm2_filter_bar">
+                        <div id="bm2_actor_filter_pills" class="bm2_actor_pills"></div>
+                        <div class="bm2_group_mode_bar">
+                            <button id="bm2_group_by_cat" class="bm2_mode_btn active" data-mode="category">📂 По разделам</button>
+                            <button id="bm2_group_by_char" class="bm2_mode_btn" data-mode="character">👤 По персонажам</button>
+                        </div>
+                    </div>
+
+                    <!-- Dropdown with optgroups -->
+                    <div style="margin-bottom:8px;">
+                        <select id="bm2_pair_select" class="bm2_select"></select>
+                    </div>
+
+                    <!-- Collapsible structured directory of links -->
+                    <div id="bm2_rel_directory" class="bm2_directory_box"></div>
+
+                    <!-- Active Selected Relationship Editor -->
+                    <div id="bm2_rel_editor_box">
+                        <div class="bm2_active_pair_banner" id="bm2_active_pair_banner"></div>
+
+                        <div class="bm2_role_row">
+                            <div style="flex:1;">
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                                    <span class="bm2_sub_label" style="margin:0;">Статус отношений</span>
+                                    <button id="bm2_btn_add_custom_role" class="bm2_mini_btn" style="padding:2px 8px; font-size:0.72rem;">➕ Свой статус вручную</button>
+                                </div>
+                                <select id="bm2_role_select" class="bm2_select"></select>
                             </div>
                         </div>
 
-                        <!-- Bipolar -100% to +100% Scale -->
+                        <!-- ROMANTIC / CRUSH MUTUALITY & SECRECY SUBTYPE (ALWAYS AVAILABLE) -->
+                        <div id="bm2_mutuality_box" style="margin-bottom:10px;">
+                            <span class="bm2_sub_label">💘 Романтический подтекст / Взаимность и тайна чувств</span>
+                            <select id="bm2_mutuality_select" class="bm2_select"></select>
+                            <div id="bm2_mutuality_hint" style="font-size:0.73rem; color:var(--bm-muted); margin-top:4px; line-height:1.3;"></div>
+                        </div>
+
+                        <!-- BIPOLAR AFFINITY BAR (-100% .. 0% .. +100%) -->
                         <div class="bm2_meter_wrap">
                             <div class="bm2_meter_header">
-                                <span id="bm2_meter_tier_text" class="bm2_meter_tier">Нейтралитет</span>
-                                <span id="bm2_meter_value_badge" class="bm2_meter_badge">0%</span>
+                                <span id="bm2_affinity_tier" class="bm2_meter_tier">Нейтралитет</span>
+                                <span id="bm2_affinity_val" class="bm2_meter_val">0%</span>
                             </div>
                             <div class="bm2_meter_bipolar_bar">
                                 <div class="bm2_meter_center_tick"></div>
-                                <div id="bm2_meter_fill_neg" class="bm2_meter_fill_neg"></div>
-                                <div id="bm2_meter_fill_pos" class="bm2_meter_fill_pos"></div>
+                                <div id="bm2_meter_neg_fill" class="bm2_meter_neg_fill" style="width:0%;"></div>
+                                <div id="bm2_meter_pos_fill" class="bm2_meter_pos_fill" style="width:0%;"></div>
                             </div>
-                            <div class="bm2_meter_scale_labels">
-                                <span>-100% Вражда</span>
-                                <span>0% Нейтрально</span>
-                                <span>+100% Любовь</span>
-                            </div>
-                            <input id="bm2_rel_affection_slider" type="range" min="-100" max="100" step="1" class="bm2_range" />
-                            <div id="bm2_rel_last_reason" class="bm2_last_reason"></div>
-                        </div>
-
-                        <label class="bm2_label">Нюансы динамики пары (инструкция для ИИ)</label>
-                        <textarea id="bm2_rel_notes" class="bm2_textarea" rows="2" placeholder="Например: скрывают отношения от коллег; внешне спорят, но заботятся друг о друге..."></textarea>
-                    </div>
-
-                    <!-- Memories / Timeline Milestones -->
-                    <div class="bm2_card">
-                        <div class="bm2_card_header_row">
-                            <span class="bm2_label">📜 Ключевые события и воспоминания пары</span>
-                        </div>
-                        <div id="bm2_memories_list" class="bm2_memories_list"></div>
-                        <div class="bm2_row" style="margin-top:6px;">
-                            <input id="bm2_new_memory_date" type="text" class="bm2_input" style="max-width:110px;" placeholder="Дата/День" />
-                            <input id="bm2_new_memory_text" type="text" class="bm2_input" placeholder="Что произошло между ними..." />
-                            <button id="bm2_add_memory_btn" class="bm2_btn bm2_btn_accent bm2_btn_small">+ Записать</button>
-                        </div>
-                    </div>
-
-                    <!-- Add NPC or Custom Pair -->
-                    <div class="bm2_card">
-                        <span class="bm2_label">➕ Добавить нового участника (NPC) в мир</span>
-                        <div class="bm2_row" style="margin-top:6px;">
-                            <input id="bm2_new_npc_name" type="text" class="bm2_input" placeholder="Имя NPC (например, Виктор)" />
-                            <select id="bm2_new_npc_target" class="bm2_select"></select>
-                            <button id="bm2_add_npc_btn" class="bm2_btn bm2_btn_accent bm2_btn_small">+ Добавить NPC</button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- TAB 2: OBSIDIAN GRAPH -->
-                <div id="tab_graph" class="bm2_tab_pane">
-                    <div class="bm2_graph_toolbar">
-                        <span class="bm2_graph_hint">💡 Перетаскивайте круги пальцем. Нажмите на узел или линию, чтобы открыть связь.</span>
-                        <div class="bm2_graph_toolbar_btns">
-                            <button id="bm2_graph_arrange_btn" class="bm2_btn bm2_btn_small">🫧 Распределить</button>
-                            <button id="bm2_graph_add_link_btn" class="bm2_btn bm2_btn_small">+ Связать узлы</button>
-                        </div>
-                    </div>
-                    <div id="bm2_graph_wrap" class="bm2_graph_canvas_wrap">
-                        <canvas id="bm2_graph_canvas"></canvas>
-                    </div>
-                    <div id="bm2_graph_legend" class="bm2_graph_legend"></div>
-                </div>
-
-                <!-- TAB 3: STYLE, GENRE & SLIDERS -->
-                <div id="tab_style" class="bm2_tab_pane">
-                    <div class="bm2_card">
-                        <div class="bm2_grid_2">
-                            <div>
-                                <label class="bm2_label">🎭 Основной жанровый пресет</label>
-                                <select id="bm2_genre_preset" class="bm2_select"></select>
-                            </div>
-                            <div>
-                                <label class="bm2_label">🔥 Сила соблюдения стиля: <span id="bm2_intensity_val">4 / 5 (Строго)</span></label>
-                                <input id="bm2_style_intensity" type="range" min="1" max="5" step="1" class="bm2_range" />
+                            <div class="bm2_meter_controls">
+                                <button id="bm2_aff_minus" class="bm2_step_btn">-5</button>
+                                <input id="bm2_affinity_slider" class="bm2_range" type="range" min="-100" max="100" step="1" value="0" />
+                                <button id="bm2_aff_plus" class="bm2_step_btn">+5</button>
                             </div>
                         </div>
 
-                        <label class="bm2_label" style="margin-top:8px;">🧩 Комбинатор поджанров и акцентов (можно выбрать несколько)</label>
-                        <div id="bm2_genre_tags_wrap" class="bm2_tags_wrap"></div>
-
-                        <div class="bm2_grid_2" style="margin-top:8px;">
-                            <div>
-                                <label class="bm2_label">✍️ Авторский слог / Писатель</label>
-                                <input id="bm2_author_voice" type="text" class="bm2_input" placeholder="Рэй Брэдбери, Донна Тартт, Нил Гейман..." />
-                            </div>
-                            <div>
-                                <label class="bm2_label">📝 Свои жанровые пожелания</label>
-                                <input id="bm2_custom_genre_notes" type="text" class="bm2_input" placeholder="Больше мрачной готики и живых диалогов..." />
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="bm2_card">
-                        <span class="bm2_label">🎚️ Ползунки темпа и атмосферы повествования</span>
-
-                        <div class="bm2_slider_row">
-                            <div class="bm2_slider_head">
-                                <span>⏳ Темп сюжета (Слоубёрн ↔ Динамика)</span>
-                                <span id="bm2_val_pacing" class="bm2_slider_val">35%</span>
-                            </div>
-                            <input id="bm2_sl_pacing" type="range" min="0" max="100" class="bm2_range" />
+                        <div style="margin-bottom:10px;">
+                            <span class="bm2_sub_label">Краткое описание динамики (учитывается ИИ в каждом ответе)</span>
+                            <input id="bm2_rel_summary" class="bm2_input" type="text" placeholder="Например: Скрывает ревность за холодными шутками..." />
                         </div>
 
-                        <div class="bm2_slider_row">
-                            <div class="bm2_slider_head">
-                                <span>💘 Скорость сближения и романтики</span>
-                                <span id="bm2_val_romanceSpeed" class="bm2_slider_val">25%</span>
+                        <div>
+                            <span class="bm2_sub_label">📌 Ключевые события и общие воспоминания пары</span>
+                            <div id="bm2_events_list" class="bm2_events_list"></div>
+                            <div class="bm2_add_npc_row" style="margin-top:6px;">
+                                <input id="bm2_new_event_text" class="bm2_input" type="text" placeholder="Добавить важное событие вручную..." />
+                                <button id="bm2_btn_add_event" class="bm2_btn">+</button>
                             </div>
-                            <input id="bm2_sl_romanceSpeed" type="range" min="0" max="100" class="bm2_range" />
                         </div>
-
-                        <div class="bm2_slider_row">
-                            <div class="bm2_slider_head">
-                                <span>💬 Баланс: Описания ↔ Диалоги</span>
-                                <span id="bm2_val_dialogueRatio" class="bm2_slider_val">55%</span>
-                            </div>
-                            <input id="bm2_sl_dialogueRatio" type="range" min="0" max="100" class="bm2_range" />
-                        </div>
-
-                        <div class="bm2_slider_row">
-                            <div class="bm2_slider_head">
-                                <span>🌿 Детализация чувств, запахов и окружения</span>
-                                <span id="bm2_val_sensoryDetail" class="bm2_slider_val">70%</span>
-                            </div>
-                            <input id="bm2_sl_sensoryDetail" type="range" min="0" max="100" class="bm2_range" />
-                        </div>
-
-                        <div class="bm2_slider_row">
-                            <div class="bm2_slider_head">
-                                <span>🧠 Психологизм и глубина эмоций</span>
-                                <span id="bm2_val_emotionalDepth" class="bm2_slider_val">75%</span>
-                            </div>
-                            <input id="bm2_sl_emotionalDepth" type="range" min="0" max="100" class="bm2_range" />
-                        </div>
-                    </div>
-                </div>
-
-                <!-- TAB 4: THEMES -->
-                <div id="tab_themes" class="bm2_tab_pane">
-                    <div class="bm2_card">
-                        <span class="bm2_label">🎨 Коллекция дизайнерских тем BlueMoon (16 оформлений)</span>
-                        <div id="bm2_theme_gallery" class="bm2_theme_gallery"></div>
-                    </div>
-                    <div class="bm2_card">
-                        <span class="bm2_label">🛠️ Своя палитра (Кастомная тема)</span>
-                        <div class="bm2_color_grid">
-                            <label>Фон окна <input type="color" id="bm2_col_bg" /></label>
-                            <label>Карточки <input type="color" id="bm2_col_panel" /></label>
-                            <label>Текст <input type="color" id="bm2_col_text" /></label>
-                            <label>Акцент <input type="color" id="bm2_col_accent" /></label>
-                            <label>Границы <input type="color" id="bm2_col_border" /></label>
-                        </div>
-                        <button id="bm2_apply_custom_theme" class="bm2_btn bm2_btn_accent" style="margin-top:10px;">Применить свою палитру</button>
                     </div>
                 </div>
             </div>
+
+            <!-- TAB 2: OBSIDIAN GRAPH -->
+            <div id="bm2_pane_graph" class="bm2_pane">
+                <div class="bm2_card">
+                    <div class="bm2_card_title">
+                        <span>🕸️ Интерактивное древо связей</span>
+                        <span style="font-size:0.75rem; color:var(--bm-muted);">Тап по узлу или линии</span>
+                    </div>
+                    <div class="bm2_graph_box">
+                        <canvas id="bm2_graph_canvas"></canvas>
+                        <div class="bm2_graph_overlay_tools">
+                            <button id="bm2_graph_arrange" class="bm2_mini_btn" title="Аккуратно расставить все узлы по кругу">🫧 Распределить</button>
+                            <button id="bm2_graph_reset" class="bm2_mini_btn">⟲ Центрировать</button>
+                        </div>
+                        <div class="bm2_graph_hint">Перетаскивай круги пальцем • Тапни связь для редактирования</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 3: NARRATIVE STYLE & GENRE -->
+            <div id="bm2_pane_style" class="bm2_pane">
+                <div class="bm2_card">
+                    <div class="bm2_card_title">
+                        <span>🎭 Жанры истории (можно выбрать несколько)</span>
+                        <select id="bm2_genre_intensity" class="bm2_select" style="width:auto; min-height:30px; padding:3px 8px; font-size:0.76rem;">
+                            <option value="soft">Мягкий акцент</option>
+                            <option value="balanced">Стандартный</option>
+                            <option value="strict">Строгий канон</option>
+                        </select>
+                    </div>
+                    <div id="bm2_genre_chips" class="bm2_chip_grid"></div>
+                    <div style="margin-top:8px;">
+                        <span class="bm2_sub_label">Свой жанр или сеттинг (через запятую)</span>
+                        <input id="bm2_custom_genre" class="bm2_input" type="text" placeholder="Например: Пост-советский киберпанк, детектив..." />
+                    </div>
+                </div>
+
+                <div class="bm2_card">
+                    <div class="bm2_card_title">
+                        <span>✒️ Авторский слог и подача</span>
+                    </div>
+                    <input id="bm2_author_voice" class="bm2_input" type="text" placeholder="Например: Донна Тартт, Гиллиан Флинн, мрачный кинематографичный реализм..." />
+                </div>
+
+                <div class="bm2_card">
+                    <div class="bm2_card_title">
+                        <span>🎚️ Баланс сцены и темп повествования</span>
+                    </div>
+                    <div class="bm2_slider_block">
+                        <div class="bm2_slider_head">
+                            <span>⚡ Экшен и физическое действие</span>
+                            <span id="bm2_lbl_action" class="bm2_slider_badge">45%</span>
+                        </div>
+                        <input id="bm2_sl_action" class="bm2_range" type="range" min="0" max="100" step="5" />
+                    </div>
+                    <div class="bm2_slider_block">
+                        <div class="bm2_slider_head">
+                            <span>🌿 Описания, атмосфера и детали</span>
+                            <span id="bm2_lbl_description" class="bm2_slider_badge">70%</span>
+                        </div>
+                        <input id="bm2_sl_description" class="bm2_range" type="range" min="0" max="100" step="5" />
+                    </div>
+                    <div class="bm2_slider_block">
+                        <div class="bm2_slider_head">
+                            <span>💬 Диалоги и живая речь</span>
+                            <span id="bm2_lbl_dialogue" class="bm2_slider_badge">65%</span>
+                        </div>
+                        <input id="bm2_sl_dialogue" class="bm2_range" type="range" min="0" max="100" step="5" />
+                    </div>
+                    <div class="bm2_slider_block">
+                        <div class="bm2_slider_head">
+                            <span>⏳ Скорость сюжета (0% Слоубёрн — 100% Быстро)</span>
+                            <span id="bm2_lbl_pacing" class="bm2_slider_badge">45%</span>
+                        </div>
+                        <input id="bm2_sl_pacing" class="bm2_range" type="range" min="0" max="100" step="5" />
+                    </div>
+                </div>
+
+                <div class="bm2_card">
+                    <div class="bm2_card_title">
+                        <span>📜 Дополнительные правила стиля для ИИ</span>
+                    </div>
+                    <textarea id="bm2_custom_directives" class="bm2_textarea" placeholder="Любые постоянные пожелания к стилю текста..."></textarea>
+                </div>
+            </div>
+
+            <!-- TAB 4: THEMES -->
+            <div id="bm2_pane_themes" class="bm2_pane">
+                <div class="bm2_card">
+                    <div class="bm2_card_title">
+                        <span>🎨 Коллекция тем оформления BlueMoon (16 тем)</span>
+                    </div>
+                    <div id="bm2_theme_gallery" class="bm2_theme_gallery"></div>
+                </div>
+            </div>
         </div>
-    </div>`;
+    </div>
+</div>`;
 }
 
-function buildGroupedRoleOptionsHtml(selectedRoleId) {
-    const allRoles = getAllRoles();
+function buildRoleOptionsHtml(profile, selectedRoleId) {
+    const allRoles = getAllRoles(profile);
     let html = '';
-
-    for (const cat of Object.values(ROLE_CATEGORIES)) {
-        const rolesInCat = allRoles.filter(r => (r.category || 'other') === cat.id);
-        if (!rolesInCat.length) continue;
-        html += `<optgroup label="${escapeHtml(cat.label)}">`;
-        for (const r of rolesInCat) {
+    for (const [catKey, catTitle] of Object.entries(ROLE_CATEGORIES)) {
+        const groupRoles = allRoles.filter((r) => (r.category || 'custom') === catKey);
+        if (groupRoles.length === 0) continue;
+        html += `<optgroup label="${escapeHtml(catTitle)}">`;
+        for (const r of groupRoles) {
             const sel = r.id === selectedRoleId ? 'selected' : '';
             html += `<option value="${escapeHtml(r.id)}" ${sel}>${escapeHtml(r.label)}</option>`;
         }
@@ -1422,1284 +1206,1167 @@ function buildGroupedRoleOptionsHtml(selectedRoleId) {
     return html;
 }
 
-function buildMutualityOptionsHtml(selectedMutualityId, nameA = 'Персонаж А', nameB = 'Персонаж Б') {
-    const activeId = selectedMutualityId || 'none';
-    return CRUSH_MUTUALITY.map(m => {
-        const formatted = getMutualityInfo(m.id, nameA, nameB);
-        const sel = formatted.id === activeId ? 'selected' : '';
-        return `<option value="${escapeHtml(formatted.id)}" ${sel}>${escapeHtml(formatted.label)}</option>`;
+function buildMutualityOptionsHtml(nameA, nameB, selectedMutualityId) {
+    return CRUSH_MUTUALITY.map((m) => {
+        const info = getMutualityInfo(m.id, nameA, nameB);
+        const sel = m.id === selectedMutualityId ? 'selected' : '';
+        return `<option value="${escapeHtml(m.id)}" ${sel}>${escapeHtml(info.label)}</option>`;
     }).join('');
 }
 
-function getFilteredRelationships(profile, filterNodeId) {
-    if (!filterNodeId || filterNodeId === 'ALL') {
-        return profile.relationships;
-    }
-    return profile.relationships.filter(r => r.from === filterNodeId || r.to === filterNodeId);
-}
+function promptAddCustomRole() {
+    const ruName = window.prompt('Введи название своего статуса отношений (например: Тайный куратор, Кровный должник, Сообщники):');
+    if (!ruName || !ruName.trim()) return null;
 
-function buildGroupedRelationshipSelectHtml(profile, filteredRels, activeRelId, groupMode) {
-    const nodeMap = Object.fromEntries(profile.nodes.map(n => [n.id, n.name]));
-    let html = '';
+    const hint = window.prompt(
+        'Как персонажи должны вести себя друг с другом в этом статусе? (кратко, можно на русском или английском):',
+        `Особый статус отношений: ${ruName.trim()}. Отыгрывать соответствующую дистанцию, тон и контекст.`
+    );
 
-    if (groupMode === 'character') {
-        for (const node of profile.nodes) {
-            const relsForNode = filteredRels.filter(r => r.from === node.id || r.to === node.id);
-            if (!relsForNode.length) continue;
-            html += `<optgroup label="👤 Связи: ${escapeHtml(node.name)} (${relsForNode.length})">`;
-            for (const rel of relsForNode) {
-                const nameA = nodeMap[rel.from] || rel.from;
-                const nameB = nodeMap[rel.to] || rel.to;
-                const roleObj = getRoleInfo(rel.role);
-                const mutObj = getMutualityInfo(rel.mutuality || 'none', nameA, nameB);
-                const mutSuffix = mutObj.shortTag ? ` [${mutObj.shortTag}]` : '';
-                const score = Number(rel.affection) || 0;
-                const sign = score > 0 ? `+${score}%` : `${score}%`;
-                const sel = rel.id === activeRelId ? 'selected' : '';
-                html += `<option value="${escapeHtml(rel.id)}" ${sel}>${escapeHtml(nameA)} ↔ ${escapeHtml(nameB)} — ${escapeHtml(roleObj.label)}${escapeHtml(mutSuffix)} (${sign})</option>`;
-            }
-            html += `</optgroup>`;
-        }
-    } else {
-        for (const cat of Object.values(ROLE_CATEGORIES)) {
-            const relsInCat = filteredRels.filter(r => {
-                const roleObj = getRoleInfo(r.role);
-                return (roleObj.category || 'other') === cat.id;
-            });
-            if (!relsInCat.length) continue;
-            html += `<optgroup label="${escapeHtml(cat.label)} (${relsInCat.length})">`;
-            for (const rel of relsInCat) {
-                const nameA = nodeMap[rel.from] || rel.from;
-                const nameB = nodeMap[rel.to] || rel.to;
-                const roleObj = getRoleInfo(rel.role);
-                const mutObj = getMutualityInfo(rel.mutuality || 'none', nameA, nameB);
-                const mutSuffix = mutObj.shortTag ? ` [${mutObj.shortTag}]` : '';
-                const score = Number(rel.affection) || 0;
-                const sign = score > 0 ? `+${score}%` : `${score}%`;
-                const sel = rel.id === activeRelId ? 'selected' : '';
-                html += `<option value="${escapeHtml(rel.id)}" ${sel}>${escapeHtml(nameA)} ↔ ${escapeHtml(nameB)} — ${escapeHtml(roleObj.label)}${escapeHtml(mutSuffix)} (${sign})</option>`;
-            }
-            html += `</optgroup>`;
-        }
-    }
-
-    return html;
-}
-
-function buildVisualDirectoryHtml(profile, filteredRels, activeRelId, groupMode) {
-    const nodeMap = Object.fromEntries(profile.nodes.map(n => [n.id, n.name]));
-    if (!filteredRels.length) {
-        return '<div class="bm2_empty_note">Нет связей для выбранного фильтра. Нажмите «+ Добавить связь вручную».</div>';
-    }
-
-    let html = '';
-
-    const renderRelPill = (rel) => {
-        const nameA = nodeMap[rel.from] || rel.from;
-        const nameB = nodeMap[rel.to] || rel.to;
-        const roleObj = getRoleInfo(rel.role);
-        const mutObj = getMutualityInfo(rel.mutuality || 'none', nameA, nameB);
-        const score = Number(rel.affection) || 0;
-        const sign = score > 0 ? `+${score}%` : `${score}%`;
-        const isActive = rel.id === activeRelId ? 'bm2_dir_item_active' : '';
-        const scoreColor = score > 10 ? '#38d399' : (score < -10 ? '#ff4d6d' : '#94a3b8');
-        const mutBadgeHtml = mutObj.shortTag
-            ? `<span class="bm2_dir_item_role" style="color:#ff85a1;border-color:rgba(255,107,157,0.45);">${escapeHtml(mutObj.shortTag)}</span>`
-            : '';
-
-        return `
-        <div class="bm2_dir_item ${isActive}" data-rel-id="${escapeHtml(rel.id)}">
-            <div class="bm2_dir_item_main">
-                <span class="bm2_dir_item_pair">${escapeHtml(nameA)} ↔ ${escapeHtml(nameB)}</span>
-                <span class="bm2_dir_item_role" style="color:${roleObj.color};border-color:${roleObj.color}55;">${escapeHtml(roleObj.shortLabel || roleObj.label)}</span>
-                ${mutBadgeHtml}
-            </div>
-            <span class="bm2_dir_item_score" style="color:${scoreColor};">${sign}</span>
-        </div>`;
+    const profile = getProfileData();
+    const id = `custom_${Date.now()}`;
+    const newRole = {
+        id,
+        category: 'custom',
+        label: ruName.trim(),
+        en: ruName.trim(),
+        promptHint: (hint && hint.trim()) ? hint.trim() : `Custom relationship role: ${ruName.trim()}.`,
     };
-
-    if (groupMode === 'character') {
-        for (const node of profile.nodes) {
-            const relsForNode = filteredRels.filter(r => r.from === node.id || r.to === node.id);
-            if (!relsForNode.length) continue;
-            const icon = node.type === 'char' ? '🎭' : (node.type === 'user' ? '👤' : '🧩');
-            html += `
-            <div class="bm2_dir_section">
-                <div class="bm2_dir_sec_title">${icon} ${escapeHtml(node.name)} <span class="bm2_dir_count">${relsForNode.length}</span></div>
-                <div class="bm2_dir_items_grid">
-                    ${relsForNode.map(renderRelPill).join('')}
-                </div>
-            </div>`;
-        }
-    } else {
-        for (const cat of Object.values(ROLE_CATEGORIES)) {
-            const relsInCat = filteredRels.filter(r => {
-                const roleObj = getRoleInfo(r.role);
-                return (roleObj.category || 'other') === cat.id;
-            });
-            if (!relsInCat.length) continue;
-            html += `
-            <div class="bm2_dir_section">
-                <div class="bm2_dir_sec_title">${escapeHtml(cat.label)} <span class="bm2_dir_count">${relsInCat.length}</span></div>
-                <div class="bm2_dir_items_grid">
-                    ${relsInCat.map(renderRelPill).join('')}
-                </div>
-            </div>`;
-        }
-    }
-
-    return html;
-}
-
-function refreshNewLinkDrawerMutualityOptions() {
-    const profile = getActiveProfile();
-    const nodeMap = Object.fromEntries(profile.nodes.map(n => [n.id, n.name]));
-    const fromId = String($('#bm2_new_link_from').val() || '');
-    const toId = String($('#bm2_new_link_to').val() || '');
-    const nameA = nodeMap[fromId] || 'Персонаж А';
-    const nameB = nodeMap[toId] || 'Персонаж Б';
-    const currentMut = String($('#bm2_new_link_mutuality').val() || 'none');
-    $('#bm2_new_link_mutuality').html(buildMutualityOptionsHtml(currentMut, nameA, nameB));
+    profile.customRoles.push(newRole);
+    saveSettings();
+    toastr.success(`Статус «${newRole.label}» добавлен!`, 'BlueMoon');
+    return newRole.id;
 }
 
 function renderRelationshipsTab() {
     const s = getSettings();
-    const profile = getActiveProfile();
-    const nodeMap = Object.fromEntries(profile.nodes.map(n => [n.id, n]));
+    const profile = getProfileData();
+    $('#bm2_story_date_input').val(profile.currentStoryDate || 'День 1');
 
-    $('#bm2_subtitle_char').text(`${getActiveCharacterName()} & ${getActiveUserName()} • ${profile.storyDate}`);
-    $('#bm2_story_date_input').val(profile.storyDate || 'День 1');
+    const $strip = $('#bm2_participants_strip').empty();
+    for (const p of profile.participants) {
+        if (!p) continue;
+        const badgeText = p.role === 'user' ? 'Игрок' : p.role === 'char' ? 'Персонаж' : 'NPC';
+        const initial = (p.name || '?').charAt(0).toUpperCase();
+        const avatarInner = p.avatar
+            ? `<img src="${escapeHtml(p.avatar)}" alt="" onerror="this.style.display='none';this.parentNode.textContent='${initial}';" />`
+            : initial;
 
-    if (s.uiFilterNodeId !== 'ALL' && !nodeMap[s.uiFilterNodeId]) {
-        s.uiFilterNodeId = 'ALL';
+        const delBtn = p.role === 'npc' ? `<span class="bm2_p_del" data-del-id="${p.id}" title="Удалить NPC">✕</span>` : '';
+
+        const $chip = $(`
+            <div class="bm2_p_chip ${selectedParticipantId === p.id ? 'active' : ''}" data-pid="${p.id}">
+                <div class="bm2_p_avatar">${avatarInner}</div>
+                <div class="bm2_p_info">
+                    <span class="bm2_p_name">${escapeHtml(p.name)}</span>
+                    <span class="bm2_p_role">${badgeText}</span>
+                </div>
+                <div class="bm2_p_actions">
+                    <button class="bm2_p_act_btn" data-upload-id="${p.id}" title="Загрузить фото с телефона">📷</button>
+                    <button class="bm2_p_act_btn" data-url-id="${p.id}" title="Вставить ссылку на картинку">🔗</button>
+                    ${delBtn}
+                </div>
+            </div>
+        `);
+        $strip.append($chip);
     }
 
-    $('#bm2_toggle_group_mode').text(
-        s.uiGroupMode === 'character' ? '👤 По персонажам' : '📂 По разделам',
-    );
+    const pOpts = profile.participants
+        .filter(Boolean)
+        .map((p) => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`)
+        .join('');
+    $('#bm2_new_link_a').html(pOpts);
+    $('#bm2_new_link_b').html(pOpts);
+    if (profile.participants.length >= 2) {
+        $('#bm2_new_link_b').val(profile.participants[1].id);
+    }
+    $('#bm2_new_link_role').html(buildRoleOptionsHtml(profile, 'acquaintances'));
 
-    const filterBar = $('#bm2_char_filter_bar');
-    filterBar.empty();
-    const allCount = profile.relationships.length;
-    filterBar.append(`
-        <button class="bm2_filter_chip ${s.uiFilterNodeId === 'ALL' ? 'bm2_filter_chip_active' : ''}" data-node-id="ALL">
-            Все связи (${allCount})
+    const updateNewLinkMutualityLabels = () => {
+        const pMapLocal = new Map(profile.participants.filter(Boolean).map((p) => [p.id, p]));
+        const pA = pMapLocal.get($('#bm2_new_link_a').val()) || profile.participants[0];
+        const pB = pMapLocal.get($('#bm2_new_link_b').val()) || profile.participants[1] || profile.participants[0];
+        const curMut = $('#bm2_new_link_mutuality').val() || 'none';
+        $('#bm2_new_link_mutuality').html(buildMutualityOptionsHtml(pA?.name || 'А', pB?.name || 'Б', curMut));
+    };
+    updateNewLinkMutualityLabels();
+
+    if (profile.participants.length >= 2 && profile.relationships.length === 0) {
+        getOrCreateRelationship(profile, profile.participants[0].id, profile.participants[1].id);
+    }
+
+    const validPIds = new Set(profile.participants.filter(Boolean).map((p) => p.id));
+    if (s.relFilterActor !== 'ALL' && !validPIds.has(s.relFilterActor)) {
+        s.relFilterActor = 'ALL';
+    }
+
+    const $pills = $('#bm2_actor_filter_pills').empty();
+    const totalCount = profile.relationships.length;
+    $pills.append(`
+        <button class="bm2_actor_pill ${s.relFilterActor === 'ALL' ? 'active' : ''}" data-actor="ALL">
+            Все связи <span class="bm2_pill_cnt">${totalCount}</span>
         </button>
     `);
-    for (const n of profile.nodes) {
-        const count = profile.relationships.filter(r => r.from === n.id || r.to === n.id).length;
-        const activeCls = s.uiFilterNodeId === n.id ? 'bm2_filter_chip_active' : '';
-        filterBar.append(`
-            <button class="bm2_filter_chip ${activeCls}" data-node-id="${escapeHtml(n.id)}">
-                ${escapeHtml(n.name)} (${count})
+
+    for (const p of profile.participants) {
+        if (!p) continue;
+        const cnt = profile.relationships.filter((r) => r && (r.sourceId === p.id || r.targetId === p.id)).length;
+        $pills.append(`
+            <button class="bm2_actor_pill ${s.relFilterActor === p.id ? 'active' : ''}" data-actor="${escapeHtml(p.id)}">
+                ${escapeHtml(p.name)} <span class="bm2_pill_cnt">${cnt}</span>
             </button>
         `);
     }
 
-    const filteredRels = getFilteredRelationships(profile, s.uiFilterNodeId);
+    $('.bm2_mode_btn').removeClass('active');
+    $(`.bm2_mode_btn[data-mode="${s.relGroupMode || 'category'}"]`).addClass('active');
 
-    if (!selectedRelId || !filteredRels.some(r => r.id === selectedRelId)) {
-        selectedRelId = filteredRels[0]?.id || profile.relationships[0]?.id || null;
+    const pMap = new Map(profile.participants.filter(Boolean).map((p) => [p.id, p]));
+    const filteredRels = profile.relationships.filter((rel) => {
+        if (!rel) return false;
+        const pA = pMap.get(rel.sourceId);
+        const pB = pMap.get(rel.targetId);
+        if (!pA || !pB) return false;
+        if (s.relFilterActor !== 'ALL' && rel.sourceId !== s.relFilterActor && rel.targetId !== s.relFilterActor) {
+            return false;
+        }
+        return true;
+    });
+
+    if ((!selectedRelId || !filteredRels.some((r) => r.id === selectedRelId)) && filteredRels.length > 0) {
+        selectedRelId = filteredRels[0].id;
     }
 
-    $('#bm2_visual_directory').html(
-        buildVisualDirectoryHtml(profile, filteredRels, selectedRelId, s.uiGroupMode),
-    );
+    const $pairSelect = $('#bm2_pair_select').empty();
+    const $directory = $('#bm2_rel_directory').empty();
 
-    const sel = $('#bm2_rel_selector');
-    sel.html(buildGroupedRelationshipSelectHtml(profile, filteredRels, selectedRelId, s.uiGroupMode));
-
-    const activeRel = profile.relationships.find(r => r.id === selectedRelId);
-    const activeRoleId = activeRel ? activeRel.role : 'acquaintances';
-    $('#bm2_rel_role').html(buildGroupedRoleOptionsHtml(activeRoleId));
-    $('#bm2_new_link_role').html(buildGroupedRoleOptionsHtml('acquaintances'));
-
-    const targetSel = $('#bm2_new_npc_target');
-    const fromSel = $('#bm2_new_link_from');
-    const toSel = $('#bm2_new_link_to');
-    targetSel.empty();
-    fromSel.empty();
-    toSel.empty();
-
-    for (const n of profile.nodes) {
-        const optHtml = `<option value="${escapeHtml(n.id)}">${escapeHtml(n.name)}</option>`;
-        targetSel.append(`<option value="${escapeHtml(n.id)}">Связать с: ${escapeHtml(n.name)}</option>`);
-        fromSel.append(optHtml);
-        toSel.append(optHtml);
+    if (filteredRels.length === 0) {
+        $pairSelect.append(`<option value="">Нет связей для выбранного фильтра</option>`);
+        $directory.html(`<div style="font-size:0.78rem; color:var(--bm-muted); padding:8px;">Связей пока нет. Нажми «+ Добавить связь вручную» выше.</div>`);
+        $('#bm2_rel_editor_box').hide();
+        return;
     }
-    if (profile.nodes.length >= 2) {
-        toSel.val(profile.nodes[1].id);
+
+    $('#bm2_rel_editor_box').show();
+
+    if ((s.relGroupMode || 'category') === 'category') {
+        for (const [catKey, catTitle] of Object.entries(ROLE_CATEGORIES)) {
+            const catRels = filteredRels.filter((r) => {
+                const rInfo = getRoleInfo(r.roleId, profile);
+                return (rInfo.category || 'custom') === catKey;
+            });
+            if (catRels.length === 0) continue;
+
+            const $optGroup = $(`<optgroup label="${escapeHtml(catTitle)} (${catRels.length})"></optgroup>`);
+            const $dirSection = $(`
+                <div class="bm2_dir_section">
+                    <div class="bm2_dir_header">${escapeHtml(catTitle)} <span>${catRels.length}</span></div>
+                    <div class="bm2_dir_items"></div>
+                </div>
+            `);
+            const $itemsBox = $dirSection.find('.bm2_dir_items');
+
+            for (const rel of catRels) {
+                const pA = pMap.get(rel.sourceId);
+                const pB = pMap.get(rel.targetId);
+                const rInfo = getRoleInfo(rel.roleId, profile);
+                const mutInfo = getMutualityInfo(rel.mutuality || 'none', pA.name, pB.name);
+                const affStr = formatAffinity(rel.affinity);
+                const isSel = rel.id === selectedRelId;
+                const mutIcon = mutInfo.id !== 'none' ? ' 💘' : '';
+
+                const labelText = `${pA.name} ↔ ${pB.name} [${rInfo.label}${mutIcon} • ${affStr}]`;
+                $optGroup.append(`<option value="${escapeHtml(rel.id)}" ${isSel ? 'selected' : ''}>${escapeHtml(labelText)}</option>`);
+
+                const affClass = rel.affinity > 10 ? 'pos' : rel.affinity < -10 ? 'neg' : 'neu';
+                $itemsBox.append(`
+                    <div class="bm2_dir_item ${isSel ? 'active' : ''}" data-rel-id="${escapeHtml(rel.id)}">
+                        <div class="bm2_dir_pair">${escapeHtml(pA.name)} ↔ ${escapeHtml(pB.name)}</div>
+                        <div class="bm2_dir_meta">
+                            <span class="bm2_dir_role">${escapeHtml(rInfo.label)}${mutIcon}</span>
+                            <span class="bm2_dir_aff ${affClass}">${affStr}</span>
+                        </div>
+                    </div>
+                `);
+            }
+
+            $pairSelect.append($optGroup);
+            $directory.append($dirSection);
+        }
+    } else {
+        for (const person of profile.participants) {
+            if (!person) continue;
+            if (s.relFilterActor !== 'ALL' && person.id !== s.relFilterActor) continue;
+            const charRels = filteredRels.filter((r) => r.sourceId === person.id || r.targetId === person.id);
+            if (charRels.length === 0) continue;
+
+            const $optGroup = $(`<optgroup label="👤 ${escapeHtml(person.name)} (${charRels.length})"></optgroup>`);
+            const $dirSection = $(`
+                <div class="bm2_dir_section">
+                    <div class="bm2_dir_header">👤 Связи: ${escapeHtml(person.name)} <span>${charRels.length}</span></div>
+                    <div class="bm2_dir_items"></div>
+                </div>
+            `);
+            const $itemsBox = $dirSection.find('.bm2_dir_items');
+
+            for (const rel of charRels) {
+                const pA = pMap.get(rel.sourceId);
+                const pB = pMap.get(rel.targetId);
+                const other = pA.id === person.id ? pB : pA;
+                const rInfo = getRoleInfo(rel.roleId, profile);
+                const mutInfo = getMutualityInfo(rel.mutuality || 'none', pA.name, pB.name);
+                const affStr = formatAffinity(rel.affinity);
+                const isSel = rel.id === selectedRelId;
+                const mutIcon = mutInfo.id !== 'none' ? ' 💘' : '';
+
+                const labelText = `${person.name} → ${other.name} [${rInfo.label}${mutIcon} • ${affStr}]`;
+                $optGroup.append(`<option value="${escapeHtml(rel.id)}" ${isSel ? 'selected' : ''}>${escapeHtml(labelText)}</option>`);
+
+                const affClass = rel.affinity > 10 ? 'pos' : rel.affinity < -10 ? 'neg' : 'neu';
+                $itemsBox.append(`
+                    <div class="bm2_dir_item ${isSel ? 'active' : ''}" data-rel-id="${escapeHtml(rel.id)}">
+                        <div class="bm2_dir_pair">→ ${escapeHtml(other.name)}</div>
+                        <div class="bm2_dir_meta">
+                            <span class="bm2_dir_role">${escapeHtml(rInfo.label)}${mutIcon}</span>
+                            <span class="bm2_dir_aff ${affClass}">${affStr}</span>
+                        </div>
+                    </div>
+                `);
+            }
+
+            $pairSelect.append($optGroup);
+            $directory.append($dirSection);
+        }
     }
-    refreshNewLinkDrawerMutualityOptions();
 
-    if (!activeRel) return;
+    $pairSelect.val(selectedRelId);
+    renderSelectedRelationshipDetails();
+}
 
-    const nodeA = nodeMap[activeRel.from] || { id: activeRel.from, name: activeRel.from, avatar: '' };
-    const nodeB = nodeMap[activeRel.to] || { id: activeRel.to, name: activeRel.to, avatar: '' };
-    const roleObj = getRoleInfo(activeRel.role);
+function renderSelectedRelationshipDetails() {
+    const profile = getProfileData();
+    const rel = profile.relationships.find((r) => r && r.id === selectedRelId);
+    if (!rel) return;
+
+    const pMap = new Map(profile.participants.filter(Boolean).map((p) => [p.id, p]));
+    const pA = pMap.get(rel.sourceId);
+    const pB = pMap.get(rel.targetId);
+    const roleInfo = getRoleInfo(rel.roleId, profile);
+    const nameA = pA?.name || 'Персонаж А';
+    const nameB = pB?.name || 'Персонаж Б';
+    const mutInfo = getMutualityInfo(rel.mutuality || 'none', nameA, nameB);
+
+    if (pA && pB) {
+        const mutBadge = mutInfo.id !== 'none'
+            ? `<div style="font-size:0.75rem; color:var(--bm-accent); margin-top:3px;">💘 ${escapeHtml(mutInfo.label)}</div>`
+            : '';
+        $('#bm2_active_pair_banner').html(`
+            <div class="bm2_banner_names">${escapeHtml(pA.name)} <span>↔</span> ${escapeHtml(pB.name)}</div>
+            <div class="bm2_banner_role">${escapeHtml(roleInfo.label)} • ${formatAffinity(rel.affinity)}${mutBadge}</div>
+        `);
+    }
+
+    $('#bm2_role_select').html(buildRoleOptionsHtml(profile, rel.roleId));
 
     $('#bm2_mutuality_box').show();
-    const currentMutId = activeRel.mutuality || roleObj.defaultMutuality || 'none';
-    const mutSelect = $('#bm2_rel_mutuality');
-    mutSelect.html(buildMutualityOptionsHtml(currentMutId, nodeA.name, nodeB.name));
+    $('#bm2_mutuality_select').html(buildMutualityOptionsHtml(nameA, nameB, rel.mutuality || 'none'));
 
-    const mutObj = getMutualityInfo(currentMutId, nodeA.name, nodeB.name);
-    const mutCenterBadge = mutObj.shortTag
-        ? `<div style="font-size:11px;color:#ff85a1;margin-top:2px;font-weight:600;">${escapeHtml(mutObj.shortTag)}</div>`
-        : '';
-
-    const renderAvatarCard = (node) => {
-        const initials = (node.name || '?').slice(0, 2).toUpperCase();
-        const imgHtml = node.avatar
-            ? `<img src="${escapeHtml(node.avatar)}" class="bm2_avatar_img" alt="${escapeHtml(node.name)}" />`
-            : `<div class="bm2_avatar_fallback">${escapeHtml(initials)}</div>`;
-        return `
-        <div class="bm2_avatar_card" data-node-id="${escapeHtml(node.id)}">
-            <div class="bm2_avatar_circle_wrap">
-                ${imgHtml}
-                <button class="bm2_avatar_upload_btn" data-node-id="${escapeHtml(node.id)}" title="Загрузить фото с телефона">📷</button>
-                <button class="bm2_avatar_url_btn" data-node-id="${escapeHtml(node.id)}" title="Вставить ссылку URL на картинку">🔗</button>
-            </div>
-            <span class="bm2_avatar_name">${escapeHtml(node.name)}</span>
-        </div>`;
+    const secrecyExplanation = {
+        none: 'ИИ отыгрывает только основной статус связи без скрытой романтики.',
+        mutual_open: `Оба (${nameA} и ${nameB}) открыто проявляют взаимную симпатию и флирт.`,
+        mutual_secret: `🔒 Защита тайны: ${nameA} и ${nameB} тайно влюблены друг в друга, но ОБА скрывают это и не знают, что чувства взаимны. ИИ запрещено «читать мысли».`,
+        secret_relationship: `🔒 Защита тайны: ${nameA} и ${nameB} знают о своих чувствах/связи, но скрывают её от ВСЕХ остальных персонажей и NPC.`,
+        one_way_a_to_b: `🔒 Защита от всеведения ИИ: Только ${nameA} тайно влюблён(а) в ${nameB}. ${nameB} и все остальные NPC НЕ ЗНАЮТ об этом и не могут догадываться!`,
+        one_way_b_to_a: `🔒 Защита от всеведения ИИ: Только ${nameB} тайно влюблён(а) в ${nameA}. ${nameA} и все остальные NPC НЕ ЗНАЮТ об этом и не могут догадываться!`,
+        unspoken_tension: `Скрытая химия и притяжение между ${nameA} и ${nameB}, которое оба отрицают и не показывают окружающим.`,
+        residual_chemistry: `Неостывшие чувства или сложная романтическая история прошлого между ${nameA} и ${nameB}.`,
     };
+    $('#bm2_mutuality_hint').text(secrecyExplanation[rel.mutuality || 'none'] || '');
 
-    $('#bm2_pair_avatars_row').html(`
-        ${renderAvatarCard(nodeA)}
-        <div class="bm2_pair_center_badge">
-            <span class="bm2_pair_role_pill" style="border-color:${roleObj.color};color:${roleObj.color};">${escapeHtml(roleObj.label)}</span>
-            ${mutCenterBadge}
-        </div>
-        ${renderAvatarCard(nodeB)}
-    `);
+    updateBipolarMeterUI(rel.affinity);
+    $('#bm2_rel_summary').val(rel.summary || '');
 
-    updateBipolarMeterUI(activeRel.affection);
-
-    const reasonText = activeRel.lastReason
-        ? `Последнее изменение (${activeRel.lastStoryDate || profile.storyDate}): ${activeRel.lastReason}`
-        : '';
-    $('#bm2_rel_last_reason').text(reasonText);
-    $('#bm2_rel_notes').val(activeRel.notes || '');
-    $('#bm2_new_memory_date').val(profile.storyDate || 'День 1');
-
-    const memWrap = $('#bm2_memories_list');
-    memWrap.empty();
-    if (!Array.isArray(activeRel.memories) || activeRel.memories.length === 0) {
-        memWrap.append('<div class="bm2_empty_note">Пока нет записанных событий. ИИ будет добавлять их автоматически или запишите важное событие вручную.</div>');
+    const $evList = $('#bm2_events_list').empty();
+    if (!Array.isArray(rel.events) || rel.events.length === 0) {
+        $evList.append(`<div style="font-size:0.78rem; color:var(--bm-muted); padding:4px;">Пока нет записанных событий. Они появятся автоматически по ходу сюжета или добавь их ниже.</div>`);
     } else {
-        activeRel.memories.forEach((m, idx) => {
-            memWrap.append(`
-                <div class="bm2_memory_item">
-                    <span class="bm2_memory_date">${escapeHtml(m.date || profile.storyDate)}</span>
-                    <span class="bm2_memory_text">${escapeHtml(m.text)}</span>
-                    <button class="bm2_memory_del" data-idx="${idx}" title="Удалить">✕</button>
+        rel.events.forEach((ev, idx) => {
+            $evList.append(`
+                <div class="bm2_event_item">
+                    <span class="bm2_event_date">${escapeHtml(ev.date || 'Дата')}</span>
+                    <span class="bm2_event_text">${escapeHtml(ev.text)}</span>
+                    <span class="bm2_event_del" data-ev-idx="${idx}" title="Удалить">✕</span>
                 </div>
             `);
         });
     }
 }
 
-function updateBipolarMeterUI(scoreVal) {
-    const score = Math.max(-100, Math.min(100, Number(scoreVal) || 0));
-    const sign = score > 0 ? `+${score}%` : `${score}%`;
+function updateBipolarMeterUI(val) {
+    const aff = clampAffinity(val);
+    $('#bm2_affinity_slider').val(aff);
+    $('#bm2_affinity_val')
+        .text(formatAffinity(aff))
+        .css('color', aff > 10 ? 'var(--bm-pos)' : aff < -10 ? 'var(--bm-neg)' : 'var(--bm-text)');
+    $('#bm2_affinity_tier').text(getAffinityTierLabel(aff));
 
-    $('#bm2_rel_affection_slider').val(score);
-    $('#bm2_meter_value_badge').text(sign);
-    $('#bm2_meter_tier_text').text(getAffectionTierLabel(score));
-
-    const negFill = $('#bm2_meter_fill_neg');
-    const posFill = $('#bm2_meter_fill_pos');
-
-    if (score < 0) {
-        const pct = Math.min(50, Math.abs(score) / 2);
-        negFill.css({ width: `${pct}%` });
-        posFill.css({ width: '0%' });
-        $('#bm2_meter_value_badge').css('color', '#ff4d6d');
-    } else if (score > 0) {
-        const pct = Math.min(50, score / 2);
-        posFill.css({ width: `${pct}%` });
-        negFill.css({ width: '0%' });
-        $('#bm2_meter_value_badge').css('color', '#38d399');
+    if (aff < 0) {
+        $('#bm2_meter_neg_fill').css('width', `${Math.abs(aff) / 2}%`);
+        $('#bm2_meter_pos_fill').css('width', '0%');
     } else {
-        negFill.css({ width: '0%' });
-        posFill.css({ width: '0%' });
-        $('#bm2_meter_value_badge').css('color', '#a5b4fc');
+        $('#bm2_meter_neg_fill').css('width', '0%');
+        $('#bm2_meter_pos_fill').css('width', `${aff / 2}%`);
     }
-}
-
-const avatarImageCache = {};
-
-function getCachedNodeImage(url, onLoaded) {
-    if (!url) return null;
-    if (avatarImageCache[url]) {
-        return avatarImageCache[url].complete ? avatarImageCache[url] : null;
-    }
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-        if (typeof onLoaded === 'function') onLoaded();
-    };
-    img.src = url;
-    avatarImageCache[url] = img;
-    return null;
 }
 
 function syncCanvasResolution() {
     const canvas = document.getElementById('bm2_graph_canvas');
     if (!canvas) return null;
-
     const rect = canvas.getBoundingClientRect();
-    const cssWidth = Math.max(280, Math.floor(rect.width || 340));
-    const cssHeight = Math.max(320, Math.floor(rect.height || 400));
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    if (rect.width < 20 || rect.height < 20) return null;
 
-    const targetW = Math.floor(cssWidth * dpr);
-    const targetH = Math.floor(cssHeight * dpr);
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const targetW = Math.round(rect.width * dpr);
+    const targetH = Math.round(rect.height * dpr);
 
     if (canvas.width !== targetW || canvas.height !== targetH) {
         canvas.width = targetW;
         canvas.height = targetH;
     }
-
-    return { canvas, cssWidth, cssHeight, dpr };
+    return { canvas, width: rect.width, height: rect.height, dpr };
 }
 
-function autoArrangeNodesInCircle() {
-    const profile = getActiveProfile();
-    const info = syncCanvasResolution();
-    const W = info ? info.cssWidth : 340;
-    const H = info ? info.cssHeight : 400;
+function autoArrangeNodesInCircle(width, height) {
+    const profile = getProfileData();
+    const count = profile.participants.length;
+    if (count === 0) return;
 
-    const cx = W / 2;
-    const cy = H / 2;
-    const radius = Math.max(85, Math.min(W, H) * 0.35);
-    const count = profile.nodes.length;
+    const cx = width / 2;
+    const cy = height / 2;
+    const radius = Math.max(65, Math.min(width, height) * 0.33);
 
-    profile.nodes.forEach((node, idx) => {
-        if (count === 1) {
-            node.x = cx;
-            node.y = cy;
-        } else if (count === 2) {
-            node.x = idx === 0 ? cx - radius * 0.85 : cx + radius * 0.85;
-            node.y = cy;
-        } else {
-            const angle = -Math.PI / 2 + (idx * 2 * Math.PI) / count;
-            node.x = Math.round(cx + radius * Math.cos(angle));
-            node.y = Math.round(cy + radius * Math.sin(angle));
+    profile.participants.forEach((p, idx) => {
+        if (!p) return;
+        const angle = (idx / count) * Math.PI * 2 - Math.PI / 2;
+        p.x = Math.round(cx + Math.cos(angle) * radius);
+        p.y = Math.round(cy + Math.sin(angle) * radius);
+    });
+    graphState.offsetX = 0;
+    graphState.offsetY = 0;
+    saveSettings();
+}
+
+function renderGraphNodes() {
+    const profile = getProfileData();
+    const metrics = syncCanvasResolution();
+    const w = metrics ? metrics.width : 340;
+    const h = metrics ? metrics.height : 360;
+    const cx = w / 2;
+    const cy = h / 2;
+    const radius = Math.max(65, Math.min(w, h) * 0.33);
+
+    graphState.nodes = profile.participants.filter(Boolean).map((p, idx) => {
+        const angle = (idx / Math.max(1, profile.participants.length)) * Math.PI * 2 - Math.PI / 2;
+        if (typeof p.x !== 'number' || typeof p.y !== 'number' || Number.isNaN(p.x) || Number.isNaN(p.y)) {
+            p.x = Math.round(cx + Math.cos(angle) * radius);
+            p.y = Math.round(cy + Math.sin(angle) * radius);
         }
+        let imgObj = null;
+        if (p.avatar) {
+            imgObj = new Image();
+            imgObj.src = p.avatar;
+        }
+        return {
+            id: p.id,
+            name: p.name,
+            role: p.role,
+            x: p.x,
+            y: p.y,
+            r: p.role === 'npc' ? 22 : 26,
+            img: imgObj,
+            ref: p,
+        };
     });
 
-    saveSettingsDebounced();
-    renderGraphCanvas();
+    graphState.edges = profile.relationships.filter(Boolean).map((r) => ({
+        id: r.id,
+        sourceId: r.sourceId,
+        targetId: r.targetId,
+        affinity: clampAffinity(r.affinity),
+        roleLabel: getRoleInfo(r.roleId, profile).label,
+        hasRomance: (r.mutuality && r.mutuality !== 'none'),
+    }));
+
+    drawObsidianGraph();
 }
 
-function renderGraphCanvas() {
-    const info = syncCanvasResolution();
-    if (!info) return;
-
-    const { canvas, cssWidth: W, cssHeight: H, dpr } = info;
+function drawObsidianGraph() {
+    const metrics = syncCanvasResolution();
+    if (!metrics) return;
+    const { canvas, width: w, height: h, dpr } = metrics;
     const ctx = canvas.getContext('2d');
-    const profile = getActiveProfile();
 
     ctx.save();
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, W, H);
+    ctx.clearRect(0, 0, w, h);
 
-    const nodeRadius = W < 420 ? 22 : 26;
-    const pad = nodeRadius + 16;
+    const styles = getComputedStyle(document.getElementById('bm2_overlay') || document.documentElement);
+    const accent = styles.getPropertyValue('--bm-accent').trim() || '#7aa2f7';
+    const posColor = styles.getPropertyValue('--bm-pos').trim() || '#4ade80';
+    const negColor = styles.getPropertyValue('--bm-neg').trim() || '#fb7185';
+    const textColor = styles.getPropertyValue('--bm-text').trim() || '#eef2ff';
 
-    profile.nodes.forEach((n, idx) => {
-        if (typeof n.x !== 'number' || typeof n.y !== 'number' || isNaN(n.x) || isNaN(n.y)) {
-            const angle = (idx / Math.max(1, profile.nodes.length)) * Math.PI * 2;
-            n.x = W / 2 + Math.cos(angle) * (Math.min(W, H) * 0.32);
-            n.y = H / 2 + Math.sin(angle) * (Math.min(W, H) * 0.32);
+    ctx.translate(graphState.offsetX, graphState.offsetY);
+
+    const nodeMap = new Map(graphState.nodes.map((n) => [n.id, n]));
+
+    for (const edge of graphState.edges) {
+        const nA = nodeMap.get(edge.sourceId);
+        const nB = nodeMap.get(edge.targetId);
+        if (!nA || !nB) continue;
+
+        const isSelected = edge.id === selectedRelId;
+        ctx.beginPath();
+        ctx.moveTo(nA.x, nA.y);
+        ctx.lineTo(nB.x, nB.y);
+
+        if (edge.affinity > 12) {
+            ctx.strokeStyle = posColor;
+        } else if (edge.affinity < -12) {
+            ctx.strokeStyle = negColor;
+        } else {
+            ctx.strokeStyle = 'rgba(160, 175, 220, 0.42)';
         }
-        n.x = Math.max(pad, Math.min(W - pad, n.x));
-        n.y = Math.max(pad, Math.min(H - pad - 10, n.y));
-    });
 
-    ctx.strokeStyle = 'rgba(255,255,255,0.04)';
-    ctx.lineWidth = 1;
-    const step = 36;
-    for (let x = step; x < W; x += step) {
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, H);
+        ctx.lineWidth = isSelected ? 3.2 : 1.7 + Math.abs(edge.affinity) / 55;
         ctx.stroke();
-    }
-    for (let y = step; y < H; y += step) {
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(W, y);
-        ctx.stroke();
-    }
 
-    const nodeMap = Object.fromEntries(profile.nodes.map(n => [n.id, n]));
-
-    profile.relationships.forEach((rel, relIdx) => {
-        const a = nodeMap[rel.from];
-        const b = nodeMap[rel.to];
-        if (!a || !b) return;
-
-        const roleObj = getRoleInfo(rel.role);
-        const isSelected = rel.id === selectedRelId;
-
-        ctx.save();
-        ctx.beginPath();
-        ctx.moveTo(a.x, a.y);
-        ctx.lineTo(b.x, b.y);
-        ctx.strokeStyle = roleObj.color || '#68a2ff';
-        ctx.lineWidth = isSelected ? 3.2 : 2;
-        if (isSelected) {
-            ctx.shadowColor = roleObj.color || '#68a2ff';
-            ctx.shadowBlur = 10;
-        }
-        ctx.stroke();
-        ctx.restore();
-
-        const t = relIdx % 3 === 0 ? 0.5 : (relIdx % 3 === 1 ? 0.41 : 0.59);
-        const mx = a.x + (b.x - a.x) * t;
-        const my = a.y + (b.y - a.y) * t;
-
-        const score = Number(rel.affection) || 0;
-        const sign = score > 0 ? `+${score}%` : `${score}%`;
-        const shortRole = roleObj.shortLabel || roleObj.label.slice(0, 11);
-        const mutId = rel.mutuality || 'none';
-        const mutHeart = mutId !== 'none' ? '💘' : '';
-        const label = `${shortRole}${mutHeart} ${sign}`;
+        const mx = (nA.x + nB.x) / 2;
+        const my = (nA.y + nB.y) / 2;
+        const shortRole = edge.roleLabel.length > 12 ? `${edge.roleLabel.slice(0, 11)}…` : edge.roleLabel;
+        const heart = edge.hasRomance ? '💘 ' : '';
+        const label = `${heart}${shortRole} (${formatAffinity(edge.affinity)})`;
 
         ctx.font = '600 10px sans-serif';
-        const textW = ctx.measureText(label).width + 10;
-        const boxH = 17;
-
-        ctx.fillStyle = isSelected ? 'rgba(20, 29, 53, 0.96)' : 'rgba(11, 15, 28, 0.88)';
-        ctx.strokeStyle = roleObj.color || '#68a2ff';
-        ctx.lineWidth = isSelected ? 1.5 : 1;
+        const tw = ctx.measureText(label).width + 10;
+        ctx.fillStyle = isSelected ? 'rgba(20, 28, 52, 0.96)' : 'rgba(10, 14, 26, 0.84)';
         ctx.beginPath();
-        ctx.roundRect(mx - textW / 2, my - boxH / 2, textW, boxH, 5);
+        ctx.roundRect(mx - tw / 2, my - 9, tw, 18, 6);
         ctx.fill();
-        ctx.stroke();
 
-        ctx.fillStyle = '#f1f5f9';
+        if (isSelected) {
+            ctx.strokeStyle = accent;
+            ctx.lineWidth = 1.2;
+            ctx.stroke();
+        }
+
+        ctx.fillStyle = textColor;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(label, mx, my);
-    });
+    }
 
-    for (const node of profile.nodes) {
-        const r = nodeRadius;
+    for (const node of graphState.nodes) {
         ctx.save();
-
-        const ringColor = node.type === 'char' ? '#ff6b9d' : (node.type === 'user' ? '#68a2ff' : '#38d399');
-        ctx.shadowColor = ringColor;
-        ctx.shadowBlur = 12;
-
         ctx.beginPath();
-        ctx.arc(node.x, node.y, r, 0, Math.PI * 2);
-        ctx.fillStyle = '#17203a';
+        ctx.arc(node.x, node.y, node.r + 3, 0, Math.PI * 2);
+        ctx.fillStyle = node.role === 'user' ? accent : node.role === 'char' ? posColor : 'rgba(180,190,230,0.45)';
+        ctx.shadowColor = accent;
+        ctx.shadowBlur = 10;
         ctx.fill();
-        ctx.lineWidth = 2.6;
-        ctx.strokeStyle = ringColor;
-        ctx.stroke();
         ctx.restore();
 
-        const img = getCachedNodeImage(node.avatar, () => renderGraphCanvas());
-        if (img) {
-            ctx.save();
-            ctx.beginPath();
-            ctx.arc(node.x, node.y, r - 2, 0, Math.PI * 2);
-            ctx.clip();
-            ctx.drawImage(img, node.x - r, node.y - r, r * 2, r * 2);
-            ctx.restore();
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, node.r, 0, Math.PI * 2);
+        ctx.clip();
+
+        if (node.img && node.img.complete && node.img.naturalWidth > 0) {
+            ctx.drawImage(node.img, node.x - node.r, node.y - node.r, node.r * 2, node.r * 2);
         } else {
-            ctx.fillStyle = '#e6edf8';
-            ctx.font = 'bold 12px sans-serif';
+            ctx.fillStyle = '#182039';
+            ctx.fillRect(node.x - node.r, node.y - node.r, node.r * 2, node.r * 2);
+            ctx.fillStyle = textColor;
+            ctx.font = 'bold 14px sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText((node.name || '?').slice(0, 2).toUpperCase(), node.x, node.y);
+            ctx.fillText((node.name || '?').charAt(0).toUpperCase(), node.x, node.y);
         }
+        ctx.restore();
 
-        const displayName = (node.name || '').length > 14 ? `${node.name.slice(0, 12)}…` : node.name;
         ctx.font = '600 11px sans-serif';
-        const nameW = ctx.measureText(displayName).width + 8;
-        const nameY = node.y + r + 11;
-
-        ctx.fillStyle = 'rgba(10, 14, 26, 0.82)';
-        ctx.beginPath();
-        ctx.roundRect(node.x - nameW / 2, nameY - 7, nameW, 15, 4);
-        ctx.fill();
-
-        ctx.fillStyle = '#e6edf8';
+        ctx.fillStyle = textColor;
         ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(displayName, node.x, nameY);
+        ctx.fillText(node.name, node.x, node.y + node.r + 14);
     }
 
     ctx.restore();
-
-    const usedRoleIds = [...new Set(profile.relationships.map(r => r.role))];
-    const legendHtml = usedRoleIds.map(rid => {
-        const r = getRoleInfo(rid);
-        return `<span class="bm2_legend_item"><i style="background:${r.color}"></i>${escapeHtml(r.label)}</span>`;
-    }).join('');
-    $('#bm2_graph_legend').html(legendHtml);
 }
 
-function renderStyleTab() {
-    const s = getSettings();
-    const cfg = s.styleConfig;
+function bindGraphCanvasEvents() {
+    const canvas = document.getElementById('bm2_graph_canvas');
+    if (!canvas) return;
 
-    const presetSel = $('#bm2_genre_preset');
-    presetSel.empty();
-    for (const [k, v] of Object.entries(GENRE_PRESETS)) {
-        const selected = k === cfg.genrePreset ? 'selected' : '';
-        presetSel.append(`<option value="${escapeHtml(k)}" ${selected}>${escapeHtml(v.label)}</option>`);
-    }
-
-    const intensityLabels = {
-        1: '1 / 5 (Мягкий намёк)',
-        2: '2 / 5 (Умеренно)',
-        3: '3 / 5 (Заметно)',
-        4: '4 / 5 (Строго)',
-        5: '5 / 5 (Абсолютный закон)',
-    };
-    const intVal = Number(cfg.intensity) || 4;
-    $('#bm2_style_intensity').val(intVal);
-    $('#bm2_intensity_val').text(intensityLabels[intVal]);
-
-    const tagsWrap = $('#bm2_genre_tags_wrap');
-    tagsWrap.empty();
-    for (const tag of MULTI_GENRE_TAGS) {
-        const active = cfg.activeTags.includes(tag.id) ? 'bm2_tag_active' : '';
-        tagsWrap.append(`<button type="button" class="bm2_tag_chip ${active}" data-tag="${escapeHtml(tag.id)}">${escapeHtml(tag.label)}</button>`);
-    }
-
-    $('#bm2_author_voice').val(cfg.authorVoice || '');
-    $('#bm2_custom_genre_notes').val(cfg.customGenreNotes || '');
-
-    for (const [key, val] of Object.entries(cfg.sliders)) {
-        $(`#bm2_sl_${key}`).val(val);
-        $(`#bm2_val_${key}`).text(`${val}%`);
-    }
-}
-
-function renderThemesTab() {
-    const s = getSettings();
-    const gal = $('#bm2_theme_gallery');
-    gal.empty();
-
-    for (const [id, t] of Object.entries(BUILTIN_THEMES)) {
-        const active = s.activeTheme === id ? 'bm2_theme_card_active' : '';
-        gal.append(`
-            <div class="bm2_theme_card ${active}" data-theme="${escapeHtml(id)}" style="background:${t.panel};border-color:${t.border};color:${t.text};box-shadow: 0 4px 14px ${t.glow || 'rgba(0,0,0,0.2)'};">
-                <div class="bm2_theme_swatches">
-                    <span style="background:${t.bg}"></span>
-                    <span style="background:${t.accent};box-shadow: 0 0 8px ${t.accent};"></span>
-                    <span style="background:${t.text}"></span>
-                </div>
-                <div class="bm2_theme_card_title">${escapeHtml(t.name)}</div>
-                <div class="bm2_theme_card_desc">${escapeHtml(t.desc || '')}</div>
-            </div>
-        `);
-    }
-
-    const ct = s.customTheme;
-    $('#bm2_col_bg').val(ct.bg);
-    $('#bm2_col_panel').val(ct.panel);
-    $('#bm2_col_text').val(ct.text);
-    $('#bm2_col_accent').val(ct.accent);
-    $('#bm2_col_border').val(ct.border);
-}
-
-function ensureModalInDom() {
-    if (!$('#bm2_overlay').length) {
-        $('body').append(buildModalHtml());
-    }
-    if (!modalEventsBound) {
-        bindModalEvents();
-        modalEventsBound = true;
-    }
-}
-
-function openBlueMoonModal() {
-    try {
-        ensureModalInDom();
-        applyThemeToModal();
-        try {
-            renderRelationshipsTab();
-        } catch (err) {
-            console.error(`[${MODULE_NAME}] renderRelationshipsTab error:`, err);
-        }
-        try {
-            renderStyleTab();
-        } catch (err) {
-            console.error(`[${MODULE_NAME}] renderStyleTab error:`, err);
-        }
-        try {
-            renderThemesTab();
-        } catch (err) {
-            console.error(`[${MODULE_NAME}] renderThemesTab error:`, err);
-        }
-        $('#bm2_overlay').addClass('bm2_visible');
-        if (activeModalTab === 'tab_graph') {
-            setTimeout(() => renderGraphCanvas(), 30);
-        }
-    } catch (err) {
-        console.error(`[${MODULE_NAME}] openBlueMoonModal fatal error:`, err);
-        toastr.error('Ошибка открытия окна BlueMoon. Проверьте консоль браузера.', 'BlueMoon');
-    }
-}
-
-function closeBlueMoonModal() {
-    $('#bm2_overlay').removeClass('bm2_visible');
-}
-
-function bindModalEvents() {
-    let uploadTargetNodeId = null;
-
-    // Global delegated handler for Wand Menu Item & Settings Open Button
-    $(document).on('click', '#bm2_wand_menu_item', function (e) {
-        e.preventDefault();
-        e.stopPropagation();
-        $('#extensionsMenu').hide();
-        openBlueMoonModal();
-    });
-
-    $(document).on('click', '#bm2_open_modal_from_settings', function (e) {
-        e.preventDefault();
-        openBlueMoonModal();
-    });
-
-    $(document).on('click', '#bm2_close_btn', closeBlueMoonModal);
-    $(document).on('click', '#bm2_overlay', function (e) {
-        if (e.target.id === 'bm2_overlay') closeBlueMoonModal();
-    });
-
-    $(document).on('click', '#bm2_preview_prompt_btn', function () {
-        updateExtensionPrompts();
-        const relP = buildRelationshipsPrompt() || '(Модуль отношений выключен)';
-        const styleP = buildStylePrompt() || '(Модуль стиля выключен)';
-        const full = `${relP}\n\n${styleP}`;
-        alert(`АКТИВНЫЙ СИСТЕМНЫЙ ПРОМПТ BLUEMOON (инъекция в чат):\n\n${full}`);
-    });
-
-    $(document).on('click', '.bm2_tab', function () {
-        const tab = $(this).data('tab');
-        activeModalTab = tab;
-        $('.bm2_tab').removeClass('bm2_tab_active');
-        $(this).addClass('bm2_tab_active');
-        $('.bm2_tab_pane').removeClass('bm2_pane_active');
-        $(`#${tab}`).addClass('bm2_pane_active');
-        if (tab === 'tab_graph') {
-            setTimeout(() => renderGraphCanvas(), 25);
-        }
-    });
-
-    $(document).on('change', '#bm2_story_date_input', function () {
-        const profile = getActiveProfile();
-        profile.storyDate = String($(this).val() || 'День 1').trim();
-        saveSettingsDebounced();
-        updateExtensionPrompts();
-        renderRelationshipsTab();
-    });
-
-    $(document).on('click', '#bm2_ai_analyze_now', function () {
-        analyzeAllRelationshipsDelta(true);
-    });
-
-    $(document).on('click', '#bm2_export_json_btn', function () {
-        exportRelationshipsToJson();
-    });
-
-    $(document).on('click', '#bm2_import_json_btn', function () {
-        $('#bm2_import_file_input').val('').trigger('click');
-    });
-
-    $(document).on('change', '#bm2_import_file_input', function (e) {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        importRelationshipsFromJson(file);
-    });
-
-    $(document).on('click', '#bm2_toggle_group_mode', function () {
-        const s = getSettings();
-        s.uiGroupMode = s.uiGroupMode === 'character' ? 'category' : 'character';
-        saveSettingsDebounced();
-        renderRelationshipsTab();
-    });
-
-    $(document).on('click', '.bm2_filter_chip', function () {
-        const s = getSettings();
-        s.uiFilterNodeId = String($(this).data('node-id') || 'ALL');
-        saveSettingsDebounced();
-        renderRelationshipsTab();
-    });
-
-    $(document).on('click', '.bm2_dir_item', function () {
-        selectedRelId = String($(this).data('rel-id'));
-        renderRelationshipsTab();
-    });
-
-    $(document).on('click', '#bm2_open_new_link_drawer', function () {
-        $('#bm2_new_link_drawer').slideToggle(160);
-    });
-
-    $(document).on('click', '#bm2_cancel_new_link_btn', function () {
-        $('#bm2_new_link_drawer').slideUp(160);
-    });
-
-    $(document).on('change', '#bm2_new_link_from, #bm2_new_link_to', function () {
-        refreshNewLinkDrawerMutualityOptions();
-    });
-
-    $(document).on('click', '#bm2_confirm_new_link_btn', function () {
-        const profile = getActiveProfile();
-        const fromId = String($('#bm2_new_link_from').val() || '');
-        const toId = String($('#bm2_new_link_to').val() || '');
-        const roleId = String($('#bm2_new_link_role').val() || 'acquaintances');
-        const mutId = String($('#bm2_new_link_mutuality').val() || 'none');
-
-        if (!fromId || !toId) return;
-        if (fromId === toId) {
-            toastr.warning('Выберите двух разных персонажей для создания связи.', 'BlueMoon');
-            return;
-        }
-
-        const existing = profile.relationships.find(
-            r => (r.from === fromId && r.to === toId) || (r.from === toId && r.to === fromId),
-        );
-
-        const s = getSettings();
-        s.uiFilterNodeId = 'ALL';
-
-        if (existing) {
-            existing.role = roleId;
-            existing.mutuality = mutId;
-            selectedRelId = existing.id;
-            toastr.info('Связь между этими персонажами уже существовала — статус и подтип обновлены.', 'BlueMoon');
-        } else {
-            const newRelId = `rel_${Date.now()}`;
-            profile.relationships.push({
-                id: newRelId,
-                from: fromId,
-                to: toId,
-                role: roleId,
-                mutuality: mutId,
-                affection: 0,
-                lastStoryDate: profile.storyDate,
-                lastReason: 'Связь добавлена вручную',
-                notes: '',
-                memories: [],
-            });
-            selectedRelId = newRelId;
-            toastr.success('Новая связь успешно создана!', 'BlueMoon');
-        }
-
-        $('#bm2_new_link_drawer').slideUp(160);
-        saveSettingsDebounced();
-        updateExtensionPrompts();
-        renderRelationshipsTab();
-        renderGraphCanvas();
-    });
-
-    $(document).on('click', '#bm2_create_custom_role_btn', function () {
-        const labelInput = prompt(
-            'Введите название своего статуса связи (можно со смайликом в начале):\nНапример: 🩸 Кровные враги / 👑 Господин и слуга / 🕵️ Тайные сообщники',
-            '🎭 Тайные сообщники',
-        );
-        if (!labelInput || !labelInput.trim()) return;
-
-        const cleanLabel = labelInput.trim().slice(0, 42);
-        const promptInput = prompt(
-            'Краткое описание этой роли для нейросети (на русском или английском):',
-            cleanLabel,
-        );
-
-        const catChoice = prompt(
-            'В какой раздел поместить статус?\n1 — 💘 Романтика\n2 — 🧬 Семья\n3 — 🤝 Дружба\n4 — 🏢 Учёба, работа и быт\n5 — ⚔️ Конфликт\n6 — 🎭 Прочее и свои статусы',
-            '6',
-        );
-        const catMap = { '1': 'romance', '2': 'family', '3': 'friendship', '4': 'social', '5': 'conflict', '6': 'other' };
-        const category = catMap[String(catChoice || '6').trim()] || 'other';
-
-        const colorMap = {
-            romance: '#ff6b9d',
-            family: '#c084fc',
-            friendship: '#4ea8de',
-            social: '#64dfdf',
-            conflict: '#ff4d6d',
-            other: '#eab308',
-        };
-
-        const customRole = {
-            id: `custom_${Date.now()}`,
-            category,
-            label: cleanLabel,
-            shortLabel: cleanLabel.slice(0, 14),
-            color: colorMap[category] || '#68a2ff',
-            hasMutuality: true,
-            defaultMutuality: 'none',
-            prompt: (promptInput && promptInput.trim()) ? promptInput.trim() : cleanLabel,
-            isCustom: true,
-        };
-
-        const s = getSettings();
-        s.customRoles.push(customRole);
-
-        const profile = getActiveProfile();
-        const rel = profile.relationships.find(r => r.id === selectedRelId);
-        if (rel) {
-            rel.role = customRole.id;
-        }
-
-        saveSettingsDebounced();
-        updateExtensionPrompts();
-        renderRelationshipsTab();
-        renderGraphCanvas();
-        toastr.success(`Статус «${cleanLabel}» создан и применён!`, 'BlueMoon');
-    });
-
-    $(document).on('change', '#bm2_rel_selector', function () {
-        selectedRelId = String($(this).val());
-        renderRelationshipsTab();
-    });
-
-    $(document).on('click', '#bm2_delete_rel_btn', function () {
-        const profile = getActiveProfile();
-        if (profile.relationships.length <= 1) {
-            toastr.warning('Нельзя удалить единственную базовую связь.', 'BlueMoon');
-            return;
-        }
-        profile.relationships = profile.relationships.filter(r => r.id !== selectedRelId);
-        selectedRelId = profile.relationships[0]?.id || null;
-        saveSettingsDebounced();
-        updateExtensionPrompts();
-        renderRelationshipsTab();
-    });
-
-    $(document).on('change', '#bm2_rel_role', function () {
-        const profile = getActiveProfile();
-        const rel = profile.relationships.find(r => r.id === selectedRelId);
-        if (!rel) return;
-        const newRoleId = String($(this).val());
-        rel.role = newRoleId;
-
-        const roleObj = getRoleInfo(newRoleId);
-        if ((!rel.mutuality || rel.mutuality === 'none') && roleObj.defaultMutuality && roleObj.defaultMutuality !== 'none') {
-            rel.mutuality = roleObj.defaultMutuality;
-        }
-
-        saveSettingsDebounced();
-        updateExtensionPrompts();
-        renderRelationshipsTab();
-    });
-
-    $(document).on('change', '#bm2_rel_mutuality', function () {
-        const profile = getActiveProfile();
-        const rel = profile.relationships.find(r => r.id === selectedRelId);
-        if (!rel) return;
-        rel.mutuality = String($(this).val() || 'none');
-        saveSettingsDebounced();
-        updateExtensionPrompts();
-        renderRelationshipsTab();
-    });
-
-    $(document).on('input', '#bm2_rel_affection_slider', function () {
-        const val = Number($(this).val()) || 0;
-        updateBipolarMeterUI(val);
-    });
-
-    $(document).on('change', '#bm2_rel_affection_slider', function () {
-        const profile = getActiveProfile();
-        const rel = profile.relationships.find(r => r.id === selectedRelId);
-        if (!rel) return;
-        rel.affection = Number($(this).val()) || 0;
-        saveSettingsDebounced();
-        updateExtensionPrompts();
-        renderRelationshipsTab();
-    });
-
-    $(document).on('change', '#bm2_rel_notes', function () {
-        const profile = getActiveProfile();
-        const rel = profile.relationships.find(r => r.id === selectedRelId);
-        if (!rel) return;
-        rel.notes = String($(this).val() || '');
-        saveSettingsDebounced();
-        updateExtensionPrompts();
-    });
-
-    $(document).on('click', '#bm2_add_memory_btn', function () {
-        const profile = getActiveProfile();
-        const rel = profile.relationships.find(r => r.id === selectedRelId);
-        if (!rel) return;
-
-        const dateStr = String($('#bm2_new_memory_date').val() || profile.storyDate).trim();
-        const textStr = String($('#bm2_new_memory_text').val() || '').trim();
-        if (!textStr) return;
-
-        if (!Array.isArray(rel.memories)) rel.memories = [];
-        rel.memories.push({ date: dateStr, text: textStr });
-        $('#bm2_new_memory_text').val('');
-        saveSettingsDebounced();
-        updateExtensionPrompts();
-        renderRelationshipsTab();
-    });
-
-    $(document).on('click', '.bm2_memory_del', function () {
-        const idx = Number($(this).data('idx'));
-        const profile = getActiveProfile();
-        const rel = profile.relationships.find(r => r.id === selectedRelId);
-        if (!rel || !Array.isArray(rel.memories)) return;
-        rel.memories.splice(idx, 1);
-        saveSettingsDebounced();
-        updateExtensionPrompts();
-        renderRelationshipsTab();
-    });
-
-    $(document).on('click', '.bm2_avatar_upload_btn', function (e) {
-        e.stopPropagation();
-        uploadTargetNodeId = String($(this).data('node-id'));
-        $('#bm2_hidden_file_input').val('').trigger('click');
-    });
-
-    $(document).on('change', '#bm2_hidden_file_input', async function (e) {
-        const file = e.target.files?.[0];
-        if (!file || !uploadTargetNodeId) return;
-        try {
-            const dataUrl = await compressImageFileToDataUrl(file, 160);
-            const profile = getActiveProfile();
-            const node = profile.nodes.find(n => n.id === uploadTargetNodeId);
-            if (node) {
-                node.avatar = dataUrl;
-                delete avatarImageCache[dataUrl];
-                saveSettingsDebounced();
-                renderRelationshipsTab();
-                renderGraphCanvas();
-                toastr.success(`Аватар для ${node.name} обновлён!`, 'BlueMoon');
+    if (typeof ResizeObserver !== 'undefined' && !graphState.resizeObserver) {
+        graphState.resizeObserver = new ResizeObserver(() => {
+            if ($('#bm2_pane_graph').hasClass('active')) {
+                drawObsidianGraph();
             }
-        } catch (err) {
-            console.error(`[${MODULE_NAME}] Image upload failed:`, err);
-            toastr.error('Не удалось обработать изображение.', 'BlueMoon');
-        }
-    });
+        });
+        graphState.resizeObserver.observe(canvas);
+    }
 
-    $(document).on('click', '.bm2_avatar_url_btn', function (e) {
-        e.stopPropagation();
-        const nodeId = String($(this).data('node-id'));
-        const profile = getActiveProfile();
-        const node = profile.nodes.find(n => n.id === nodeId);
-        if (!node) return;
-
-        const url = prompt(`Вставьте прямую ссылку (URL) на аватар для «${node.name}» (или оставьте пустым для сброса):`, node.avatar || '');
-        if (url === null) return;
-        node.avatar = url.trim();
-        saveSettingsDebounced();
-        renderRelationshipsTab();
-        renderGraphCanvas();
-    });
-
-    $(document).on('click', '#bm2_add_npc_btn', function () {
-        const name = String($('#bm2_new_npc_name').val() || '').trim();
-        const targetId = String($('#bm2_new_npc_target').val() || 'node_char');
-        if (!name) {
-            toastr.warning('Введите имя нового персонажа/NPC.', 'BlueMoon');
-            return;
-        }
-
-        const profile = getActiveProfile();
-        let npcNode = profile.nodes.find(n => n.name.toLowerCase() === name.toLowerCase());
-        if (!npcNode) {
-            npcNode = {
-                id: `node_npc_${Date.now()}`,
-                name,
-                type: 'npc',
-                avatar: '',
-                x: 160 + Math.floor(Math.random() * 140),
-                y: 120 + Math.floor(Math.random() * 160),
-            };
-            profile.nodes.push(npcNode);
-        }
-
-        const existsRel = profile.relationships.find(
-            r => (r.from === npcNode.id && r.to === targetId) || (r.from === targetId && r.to === npcNode.id),
-        );
-        if (!existsRel && npcNode.id !== targetId) {
-            const newRel = {
-                id: `rel_${Date.now()}`,
-                from: npcNode.id,
-                to: targetId,
-                role: 'acquaintances',
-                mutuality: 'none',
-                affection: 0,
-                lastStoryDate: profile.storyDate,
-                lastReason: 'Добавлен в историю',
-                notes: '',
-                memories: [],
-            };
-            profile.relationships.push(newRel);
-            selectedRelId = newRel.id;
-        }
-
-        $('#bm2_new_npc_name').val('');
-        saveSettingsDebounced();
-        updateExtensionPrompts();
-        renderRelationshipsTab();
-        toastr.success(`Участник «${name}» добавлен в сеть связей!`, 'BlueMoon');
-    });
-
-    $(document).on('click', '#bm2_graph_arrange_btn', function () {
-        autoArrangeNodesInCircle();
-        toastr.info('Узлы равномерно распределены по кругу.', 'BlueMoon');
-    });
-
-    $(document).on('click', '#bm2_graph_add_link_btn', function () {
-        activeModalTab = 'tab_rel';
-        $('.bm2_tab').removeClass('bm2_tab_active');
-        $('.bm2_tab[data-tab="tab_rel"]').addClass('bm2_tab_active');
-        $('.bm2_tab_pane').removeClass('bm2_pane_active');
-        $('#tab_rel').addClass('bm2_pane_active');
-        renderRelationshipsTab();
-        $('#bm2_new_link_drawer').slideDown(160);
-    });
-
-    let dragStartX = 0;
-    let dragStartY = 0;
-    let movedDuringTouch = false;
-
-    function getCanvasCoords(e) {
-        const canvas = document.getElementById('bm2_graph_canvas');
+    const getCoords = (e) => {
         const rect = canvas.getBoundingClientRect();
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
         const clientY = e.touches ? e.touches[0].clientY : e.clientY;
         return {
-            x: clientX - rect.left,
-            y: clientY - rect.top,
+            x: clientX - rect.left - graphState.offsetX,
+            y: clientY - rect.top - graphState.offsetY,
+            rawX: clientX,
+            rawY: clientY,
         };
-    }
+    };
 
-    $(document).on('mousedown touchstart', '#bm2_graph_canvas', function (e) {
-        const pos = getCanvasCoords(e.originalEvent || e);
-        const profile = getActiveProfile();
-        movedDuringTouch = false;
-        dragStartX = pos.x;
-        dragStartY = pos.y;
+    const onStart = (e) => {
+        const pt = getCoords(e);
+        graphState.lastTouchX = pt.rawX;
+        graphState.lastTouchY = pt.rawY;
 
-        for (const n of profile.nodes) {
-            const dist = Math.hypot(pos.x - n.x, pos.y - n.y);
-            if (dist <= 30) {
-                graphDragNodeId = n.id;
+        for (let i = graphState.nodes.length - 1; i >= 0; i--) {
+            const n = graphState.nodes[i];
+            const dist = Math.hypot(pt.x - n.x, pt.y - n.y);
+            if (dist <= n.r + 8) {
+                graphState.draggingNode = n;
                 e.preventDefault();
                 return;
             }
         }
 
-        const nodeMap = Object.fromEntries(profile.nodes.map(n => [n.id, n]));
-        profile.relationships.forEach((rel, relIdx) => {
-            const a = nodeMap[rel.from];
-            const b = nodeMap[rel.to];
-            if (!a || !b) return;
-            const t = relIdx % 3 === 0 ? 0.5 : (relIdx % 3 === 1 ? 0.41 : 0.59);
-            const mx = a.x + (b.x - a.x) * t;
-            const my = a.y + (b.y - a.y) * t;
-            if (Math.hypot(pos.x - mx, pos.y - my) <= 30) {
-                selectedRelId = rel.id;
-                renderGraphCanvas();
+        const nodeMap = new Map(graphState.nodes.map((n) => [n.id, n]));
+        for (const edge of graphState.edges) {
+            const nA = nodeMap.get(edge.sourceId);
+            const nB = nodeMap.get(edge.targetId);
+            if (!nA || !nB) continue;
+            const mx = (nA.x + nB.x) / 2;
+            const my = (nA.y + nB.y) / 2;
+            if (Math.hypot(pt.x - mx, pt.y - my) < 34) {
+                selectedRelId = edge.id;
+                drawObsidianGraph();
                 renderRelationshipsTab();
-            }
-        });
-    });
-
-    $(document).on('mousemove touchmove', '#bm2_graph_canvas', function (e) {
-        if (!graphDragNodeId) return;
-        const pos = getCanvasCoords(e.originalEvent || e);
-        if (Math.hypot(pos.x - dragStartX, pos.y - dragStartY) > 6) {
-            movedDuringTouch = true;
-        }
-        const profile = getActiveProfile();
-        const node = profile.nodes.find(n => n.id === graphDragNodeId);
-        if (node) {
-            const canvas = document.getElementById('bm2_graph_canvas');
-            const rect = canvas.getBoundingClientRect();
-            node.x = Math.max(28, Math.min(rect.width - 28, pos.x));
-            node.y = Math.max(28, Math.min(rect.height - 34, pos.y));
-            renderGraphCanvas();
-        }
-        e.preventDefault();
-    });
-
-    $(document).on('mouseup touchend', '#bm2_graph_canvas', function () {
-        if (graphDragNodeId) {
-            const tappedNodeId = graphDragNodeId;
-            graphDragNodeId = null;
-            saveSettingsDebounced();
-
-            if (!movedDuringTouch) {
-                const s = getSettings();
-                s.uiFilterNodeId = tappedNodeId;
-                const profile = getActiveProfile();
-                const rel = profile.relationships.find(r => r.from === tappedNodeId || r.to === tappedNodeId);
-                if (rel) {
-                    selectedRelId = rel.id;
-                    activeModalTab = 'tab_rel';
-                    $('.bm2_tab').removeClass('bm2_tab_active');
-                    $('.bm2_tab[data-tab="tab_rel"]').addClass('bm2_tab_active');
-                    $('.bm2_tab_pane').removeClass('bm2_pane_active');
-                    $('#tab_rel').addClass('bm2_pane_active');
-                    renderRelationshipsTab();
-                }
+                $('.bm2_tab[data-tab="rel"]').trigger('click');
+                e.preventDefault();
+                return;
             }
         }
-    });
 
-    $(document).on('change', '#bm2_genre_preset', function () {
-        const s = getSettings();
-        s.styleConfig.genrePreset = String($(this).val());
-        saveSettingsDebounced();
-        updateExtensionPrompts();
-    });
+        graphState.isPanning = true;
+    };
 
-    $(document).on('input change', '#bm2_style_intensity', function () {
-        const s = getSettings();
-        const val = Number($(this).val()) || 4;
-        s.styleConfig.intensity = val;
-        const intensityLabels = {
-            1: '1 / 5 (Мягкий намёк)',
-            2: '2 / 5 (Умеренно)',
-            3: '3 / 5 (Заметно)',
-            4: '4 / 5 (Строго)',
-            5: '5 / 5 (Абсолютный закон)',
-        };
-        $('#bm2_intensity_val').text(intensityLabels[val]);
-        saveSettingsDebounced();
-        updateExtensionPrompts();
-    });
-
-    $(document).on('click', '.bm2_tag_chip', function () {
-        const tagId = String($(this).data('tag'));
-        const s = getSettings();
-        const idx = s.styleConfig.activeTags.indexOf(tagId);
-        if (idx >= 0) {
-            s.styleConfig.activeTags.splice(idx, 1);
-        } else {
-            s.styleConfig.activeTags.push(tagId);
+    const onMove = (e) => {
+        if (!graphState.draggingNode && !graphState.isPanning) return;
+        const pt = getCoords(e);
+        if (graphState.draggingNode) {
+            graphState.draggingNode.x = pt.x;
+            graphState.draggingNode.y = pt.y;
+            graphState.draggingNode.ref.x = Math.round(pt.x);
+            graphState.draggingNode.ref.y = Math.round(pt.y);
+            drawObsidianGraph();
+            e.preventDefault();
+        } else if (graphState.isPanning) {
+            graphState.offsetX += pt.rawX - graphState.lastTouchX;
+            graphState.offsetY += pt.rawY - graphState.lastTouchY;
+            graphState.lastTouchX = pt.rawX;
+            graphState.lastTouchY = pt.rawY;
+            drawObsidianGraph();
+            e.preventDefault();
         }
-        saveSettingsDebounced();
-        updateExtensionPrompts();
-        renderStyleTab();
-    });
+    };
 
-    $(document).on('change', '#bm2_author_voice, #bm2_custom_genre_notes', function () {
-        const s = getSettings();
-        s.styleConfig.authorVoice = String($('#bm2_author_voice').val() || '').trim();
-        s.styleConfig.customGenreNotes = String($('#bm2_custom_genre_notes').val() || '').trim();
-        saveSettingsDebounced();
-        updateExtensionPrompts();
-    });
+    const onEnd = () => {
+        if (graphState.draggingNode) {
+            saveSettings();
+        }
+        graphState.draggingNode = null;
+        graphState.isPanning = false;
+    };
 
-    $(document).on('input change', '[id^="bm2_sl_"]', function () {
-        const key = this.id.replace('bm2_sl_', '');
-        const val = Number($(this).val()) || 0;
-        const s = getSettings();
-        s.styleConfig.sliders[key] = val;
-        $(`#bm2_val_${key}`).text(`${val}%`);
-        saveSettingsDebounced();
-        updateExtensionPrompts();
-    });
+    canvas.addEventListener('mousedown', onStart);
+    canvas.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onEnd);
 
-    $(document).on('click', '.bm2_theme_card', function () {
-        const themeId = String($(this).data('theme'));
-        const s = getSettings();
-        s.activeTheme = themeId;
-        saveSettingsDebounced();
-        applyThemeToModal();
-        renderThemesTab();
-    });
+    canvas.addEventListener('touchstart', onStart, { passive: false });
+    canvas.addEventListener('touchmove', onMove, { passive: false });
+    canvas.addEventListener('touchend', onEnd);
+}
 
-    $(document).on('click', '#bm2_apply_custom_theme', function () {
-        const s = getSettings();
-        s.customTheme = {
-            bg: $('#bm2_col_bg').val(),
-            panel: $('#bm2_col_panel').val(),
-            text: $('#bm2_col_text').val(),
-            accent: $('#bm2_col_accent').val(),
-            border: $('#bm2_col_border').val(),
-            glow: 'rgba(104, 162, 255, 0.25)',
-        };
-        s.activeTheme = 'custom';
-        saveSettingsDebounced();
-        applyThemeToModal();
-        renderThemesTab();
-        toastr.success('Своя палитра применена!', 'BlueMoon');
-    });
+function renderStyleTab() {
+    const s = getSettings();
+    const sc = s.styleConfig;
 
-    const wrapEl = document.getElementById('bm2_graph_wrap');
-    if (wrapEl && typeof ResizeObserver !== 'undefined' && !graphCanvasResizeObserver) {
-        graphCanvasResizeObserver = new ResizeObserver(() => {
-            if (activeModalTab === 'tab_graph' && $('#bm2_overlay').hasClass('bm2_visible')) {
-                renderGraphCanvas();
-            }
-        });
-        graphCanvasResizeObserver.observe(wrapEl);
+    $('#bm2_genre_intensity').val(sc.genreIntensity || 'strict');
+    $('#bm2_custom_genre').val(sc.customGenre || '');
+    $('#bm2_author_voice').val(sc.authorVoice || '');
+    $('#bm2_custom_directives').val(sc.customDirectives || '');
+
+    const $grid = $('#bm2_genre_chips').empty();
+    for (const g of GENRE_PRESETS) {
+        const active = Array.isArray(sc.genres) && sc.genres.includes(g.id);
+        $grid.append(`
+            <div class="bm2_chip ${active ? 'active' : ''}" data-genre-id="${g.id}">
+                ${escapeHtml(g.label)}
+            </div>
+        `);
+    }
+
+    const sl = sc.sliders || DEFAULT_SETTINGS.styleConfig.sliders;
+    for (const key of ['action', 'description', 'dialogue', 'pacing']) {
+        const val = sl[key] ?? 50;
+        $(`#bm2_sl_${key}`).val(val);
+        $(`#bm2_lbl_${key}`).text(`${val}%`);
     }
 }
 
-function bindSettingsPanelEvents() {
+function renderThemesTab() {
     const s = getSettings();
+    const $gal = $('#bm2_theme_gallery').empty();
 
-    $('#bm2_master_enabled').prop('checked', s.masterEnabled).off('change').on('change', function () {
-        s.masterEnabled = $(this).is(':checked');
-        saveSettingsDebounced();
-        updateExtensionPrompts();
-    });
+    for (const t of THEMES) {
+        const active = s.activeTheme === t.id;
+        const dots = t.colors.map((c) => `<span class="bm2_swatch_dot" style="background:${c};"></span>`).join('');
+        $gal.append(`
+            <div class="bm2_theme_card ${active ? 'active' : ''}" data-theme-id="${t.id}">
+                <div class="bm2_theme_swatches">${dots}</div>
+                <div class="bm2_theme_name">${escapeHtml(t.name)}</div>
+                <div class="bm2_theme_desc">${escapeHtml(t.desc)}</div>
+            </div>
+        `);
+    }
+}
 
-    $('#bm2_rel_enabled').prop('checked', s.relEnabled).off('change').on('change', function () {
-        s.relEnabled = $(this).is(':checked');
-        saveSettingsDebounced();
-        updateExtensionPrompts();
-    });
+function applyTheme(themeId) {
+    const s = getSettings();
+    s.activeTheme = themeId;
+    $('#bm2_overlay').attr('data-bm-theme', themeId);
+    saveSettings();
+}
 
-    $('#bm2_rel_auto_analyze').prop('checked', s.relAutoAnalyze).off('change').on('change', function () {
-        s.relAutoAnalyze = $(this).is(':checked');
-        saveSettingsDebounced();
-    });
+function ensureModalInDom() {
+    if (!document.getElementById('bm2_overlay')) {
+        $('body').append(createModalHtml());
+        bindModalEvents();
+        bindGraphCanvasEvents();
+    }
+}
 
-    $('#bm2_isolate_per_chat').prop('checked', s.isolatePerChat).off('change').on('change', function () {
-        s.isolatePerChat = $(this).is(':checked');
-        saveSettingsDebounced();
-        updateExtensionPrompts();
-    });
+function openBlueMoonModal(e) {
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
+    if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
 
-    $('#bm2_style_enabled').prop('checked', s.styleEnabled).off('change').on('change', function () {
-        s.styleEnabled = $(this).is(':checked');
-        saveSettingsDebounced();
-        updateExtensionPrompts();
-    });
+    try {
+        ensureModalInDom();
+        const overlayEl = document.getElementById('bm2_overlay');
+        if (overlayEl) {
+            overlayEl.style.setProperty('display', 'flex', 'important');
+            overlayEl.style.setProperty('z-index', '2147483600', 'important');
+        }
+        $('#extensionsMenu').hide();
+    } catch (domErr) {
+        console.error(`[${MODULE_NAME}] Critical DOM open error:`, domErr);
+    }
 
-    $('#bm2_injection_depth').val(s.injectionDepth).off('change').on('change', function () {
-        s.injectionDepth = Number($(this).val()) || 1;
-        saveSettingsDebounced();
-        updateExtensionPrompts();
-    });
+    try {
+        const s = getSettings();
+        applyTheme(s.activeTheme || 'moonlight');
+    } catch (err) {
+        console.error(`[${MODULE_NAME}] applyTheme error:`, err);
+    }
 
-    populateConnectionProfiles();
-    $('#bm2_connection_profile').off('change').on('change', function () {
-        s.connectionProfileId = String($(this).val() || '');
-        saveSettingsDebounced();
-    });
+    try {
+        renderRelationshipsTab();
+    } catch (err) {
+        console.error(`[${MODULE_NAME}] renderRelationshipsTab error:`, err);
+        toastr.error(`Ошибка отрисовки вкладки связей: ${err.message}`, 'BlueMoon');
+    }
+
+    try {
+        renderStyleTab();
+    } catch (err) {
+        console.error(`[${MODULE_NAME}] renderStyleTab error:`, err);
+    }
+
+    try {
+        renderThemesTab();
+    } catch (err) {
+        console.error(`[${MODULE_NAME}] renderThemesTab error:`, err);
+    }
+
+    try {
+        renderGraphNodes();
+    } catch (err) {
+        console.error(`[${MODULE_NAME}] renderGraphNodes error:`, err);
+    }
+}
+
+function closeBlueMoonModal() {
+    const overlayEl = document.getElementById('bm2_overlay');
+    if (overlayEl) {
+        overlayEl.style.setProperty('display', 'none', 'important');
+    }
+}
+
+function populateConnectionProfiles() {
+    const s = getSettings();
+    const ctx = getContext();
+    const $sel = $('#bm2_connection_profile');
+    if (!$sel.length) return;
+
+    $sel.empty().append(`<option value="">Текущее активное подключение SillyTavern</option>`);
+    const profiles = ctx.extensionSettings?.connectionManager?.profiles || [];
+    if (Array.isArray(profiles)) {
+        for (const p of profiles) {
+            if (p && p.id && p.name) {
+                $sel.append(`<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`);
+            }
+        }
+    }
+    $sel.val(s.connectionProfileId || '');
 }
 
 function injectWandMenuButton() {
-    const extMenu = $('#extensionsMenu');
-    if (!extMenu.length) return;
-    if ($('#bm2_wand_menu_item').length) return;
+    const menu = document.getElementById('extensionsMenu');
+    if (!menu) return;
 
-    const itemHtml = `
-        <div id="bm2_wand_menu_item" class="list-group-item flex-container flexGap5 interactable" title="Открыть BlueMoon: Отношения, Граф и Стиль">
+    let item = document.getElementById('bm2_wand_menu_item');
+    if (!item) {
+        item = document.createElement('div');
+        item.id = 'bm2_wand_menu_item';
+        item.className = 'list-group-item flex-container flexGap5 interactable';
+        item.tabIndex = 0;
+        item.title = 'Открыть BlueMoon: Отношения, Древо и Стиль';
+        item.innerHTML = `
             <div class="fa-solid fa-moon extensionsMenuExtensionButton"></div>
             <span>BlueMoon: Отношения и Стиль</span>
-        </div>
-    `;
-    extMenu.append(itemHtml);
+        `;
+        item.addEventListener('click', (ev) => {
+            openBlueMoonModal(ev);
+        });
+        menu.appendChild(item);
+    }
+}
+
+function bindModalEvents() {
+    let uploadTargetId = null;
+
+    $(document).on('click', '#bm2_btn_close', () => {
+        closeBlueMoonModal();
+    });
+
+    $(document).on('click', '#bm2_overlay', (e) => {
+        if (e.target.id === 'bm2_overlay') {
+            closeBlueMoonModal();
+        }
+    });
+
+    $(document).on('click', '.bm2_tab', function () {
+        const tab = $(this).data('tab');
+        $('.bm2_tab').removeClass('active');
+        $(this).addClass('active');
+        $('.bm2_pane').removeClass('active');
+        $(`#bm2_pane_${tab}`).addClass('active');
+        if (tab === 'graph') {
+            requestAnimationFrame(() => {
+                renderGraphNodes();
+            });
+        }
+    });
+
+    $(document).on('change', '#bm2_story_date_input', function () {
+        const profile = getProfileData();
+        profile.currentStoryDate = $(this).val().trim() || 'День 1';
+        saveSettings();
+        updatePromptInjections();
+    });
+
+    $(document).on('click', '#bm2_btn_next_day', () => {
+        const profile = getProfileData();
+        const cur = profile.currentStoryDate || 'День 1';
+        const m = cur.match(/(.*?)(\d+)(.*)/);
+        if (m) {
+            profile.currentStoryDate = `${m[1]}${Number(m[2]) + 1}${m[3]}`;
+        } else {
+            profile.currentStoryDate = `${cur} (+1 день)`;
+        }
+        $('#bm2_story_date_input').val(profile.currentStoryDate);
+        saveSettings();
+        updatePromptInjections();
+    });
+
+    $(document).on('click', '#bm2_btn_analyze_now', () => {
+        analyzeAllRelationshipsWithLLM(true);
+    });
+
+    $(document).on('click', '#bm2_btn_export_json', () => {
+        exportRelationshipsJson();
+    });
+
+    $(document).on('click', '#bm2_btn_import_json', () => {
+        $('#bm2_hidden_import_input').val('').trigger('click');
+    });
+
+    $(document).on('change', '#bm2_hidden_import_input', function (e) {
+        const file = e.target.files?.[0];
+        if (file) {
+            importRelationshipsJsonFile(file);
+        }
+    });
+
+    $(document).on('click', '#bm2_btn_add_npc', () => {
+        const name = $('#bm2_new_npc_name').val().trim();
+        if (!name) return;
+        const profile = getProfileData();
+        const newId = `npc_${Date.now()}`;
+        const newNpc = {
+            id: newId,
+            name,
+            role: 'npc',
+            avatar: '',
+            x: 170 + Math.round((Math.random() - 0.5) * 110),
+            y: 170 + Math.round((Math.random() - 0.5) * 110),
+        };
+        profile.participants.push(newNpc);
+
+        for (const p of profile.participants) {
+            if (p && p.id !== newId) {
+                getOrCreateRelationship(profile, newId, p.id);
+            }
+        }
+        $('#bm2_new_npc_name').val('');
+        saveSettings();
+        updatePromptInjections();
+        renderRelationshipsTab();
+        renderGraphNodes();
+        toastr.success(`NPC «${name}» добавлен в сеть связей`, 'BlueMoon');
+    });
+
+    $(document).on('click', '.bm2_p_del', function (e) {
+        e.stopPropagation();
+        const delId = $(this).data('del-id');
+        const profile = getProfileData();
+        profile.participants = profile.participants.filter((p) => p && p.id !== delId);
+        profile.relationships = profile.relationships.filter((r) => r && r.sourceId !== delId && r.targetId !== delId);
+        saveSettings();
+        updatePromptInjections();
+        renderRelationshipsTab();
+        renderGraphNodes();
+    });
+
+    $(document).on('click', '[data-upload-id]', function (e) {
+        e.stopPropagation();
+        uploadTargetId = $(this).data('upload-id');
+        $('#bm2_hidden_file_input').val('').trigger('click');
+    });
+
+    $(document).on('change', '#bm2_hidden_file_input', async function (e) {
+        const file = e.target.files?.[0];
+        if (!file || !uploadTargetId) return;
+        try {
+            const dataUrl = await compressImageFileToDataUrl(file, 160, 0.82);
+            const profile = getProfileData();
+            const p = profile.participants.find((x) => x && x.id === uploadTargetId);
+            if (p) {
+                p.avatar = dataUrl;
+                p.customAvatar = true;
+                saveSettings();
+                renderRelationshipsTab();
+                renderGraphNodes();
+                toastr.success(`Фото для ${p.name} обновлено`, 'BlueMoon');
+            }
+        } catch (err) {
+            console.error(`[${MODULE_NAME}] Image upload failed:`, err);
+            toastr.error('Не удалось обработать изображение', 'BlueMoon');
+        }
+    });
+
+    $(document).on('click', '[data-url-id]', function (e) {
+        e.stopPropagation();
+        const targetId = $(this).data('url-id');
+        const profile = getProfileData();
+        const p = profile.participants.find((x) => x && x.id === targetId);
+        if (!p) return;
+        const url = window.prompt(`Вставь прямую ссылку (URL) на аватарку для ${p.name}:`, p.avatar?.startsWith('http') ? p.avatar : '');
+        if (url !== null) {
+            p.avatar = url.trim();
+            p.customAvatar = Boolean(url.trim());
+            saveSettings();
+            renderRelationshipsTab();
+            renderGraphNodes();
+        }
+    });
+
+    $(document).on('click', '.bm2_actor_pill', function () {
+        const s = getSettings();
+        s.relFilterActor = String($(this).data('actor') || 'ALL');
+        saveSettings();
+        renderRelationshipsTab();
+    });
+
+    $(document).on('click', '.bm2_mode_btn', function () {
+        const s = getSettings();
+        s.relGroupMode = String($(this).data('mode') || 'category');
+        saveSettings();
+        renderRelationshipsTab();
+    });
+
+    $(document).on('click', '.bm2_dir_item', function () {
+        selectedRelId = String($(this).data('rel-id'));
+        $('#bm2_pair_select').val(selectedRelId);
+        $('.bm2_dir_item').removeClass('active');
+        $(this).addClass('active');
+        renderSelectedRelationshipDetails();
+    });
+
+    $(document).on('click', '#bm2_btn_toggle_new_link', () => {
+        $('#bm2_new_link_drawer').slideToggle(150);
+    });
+
+    $(document).on('change', '#bm2_new_link_a, #bm2_new_link_b', () => {
+        const profile = getProfileData();
+        const pMap = new Map(profile.participants.filter(Boolean).map((p) => [p.id, p]));
+        const pA = pMap.get($('#bm2_new_link_a').val());
+        const pB = pMap.get($('#bm2_new_link_b').val());
+        const curMut = $('#bm2_new_link_mutuality').val() || 'none';
+        $('#bm2_new_link_mutuality').html(buildMutualityOptionsHtml(pA?.name || 'А', pB?.name || 'Б', curMut));
+    });
+
+    $(document).on('click', '#bm2_btn_create_link_confirm', () => {
+        const idA = String($('#bm2_new_link_a').val() || '');
+        const idB = String($('#bm2_new_link_b').val() || '');
+        if (!idA || !idB || idA === idB) {
+            toastr.warning('Выбери двух разных участников для создания связи.', 'BlueMoon');
+            return;
+        }
+        const profile = getProfileData();
+        const rel = getOrCreateRelationship(profile, idA, idB);
+        if (rel) {
+            rel.roleId = String($('#bm2_new_link_role').val() || 'acquaintances');
+            rel.mutuality = String($('#bm2_new_link_mutuality').val() || 'none');
+            rel.affinity = clampAffinity($('#bm2_new_link_aff').val());
+            selectedRelId = rel.id;
+            const s = getSettings();
+            s.relFilterActor = 'ALL';
+            saveSettings();
+            updatePromptInjections();
+            $('#bm2_new_link_drawer').slideUp(150);
+            renderRelationshipsTab();
+            renderGraphNodes();
+            toastr.success('Связь открыта и сохранена!', 'BlueMoon');
+        }
+    });
+
+    $(document).on('click', '#bm2_btn_add_custom_role', () => {
+        const newRoleId = promptAddCustomRole();
+        if (!newRoleId) return;
+        const profile = getProfileData();
+        const rel = profile.relationships.find((r) => r && r.id === selectedRelId);
+        if (rel) {
+            rel.roleId = newRoleId;
+            saveSettings();
+            updatePromptInjections();
+        }
+        renderRelationshipsTab();
+        renderGraphNodes();
+    });
+
+    $(document).on('change', '#bm2_pair_select', function () {
+        selectedRelId = $(this).val();
+        $('.bm2_dir_item').removeClass('active');
+        $(`.bm2_dir_item[data-rel-id="${selectedRelId}"]`).addClass('active');
+        renderSelectedRelationshipDetails();
+    });
+
+    $(document).on('change', '#bm2_role_select', function () {
+        const profile = getProfileData();
+        const rel = profile.relationships.find((r) => r && r.id === selectedRelId);
+        if (!rel) return;
+        rel.roleId = $(this).val();
+        saveSettings();
+        updatePromptInjections();
+        renderRelationshipsTab();
+        renderGraphNodes();
+    });
+
+    $(document).on('change', '#bm2_mutuality_select', function () {
+        const profile = getProfileData();
+        const rel = profile.relationships.find((r) => r && r.id === selectedRelId);
+        if (!rel) return;
+        rel.mutuality = $(this).val();
+        saveSettings();
+        updatePromptInjections();
+        renderRelationshipsTab();
+        renderGraphNodes();
+    });
+
+    $(document).on('input change', '#bm2_affinity_slider', function () {
+        const profile = getProfileData();
+        const rel = profile.relationships.find((r) => r && r.id === selectedRelId);
+        if (!rel) return;
+        rel.affinity = clampAffinity($(this).val());
+        updateBipolarMeterUI(rel.affinity);
+        saveSettings();
+        updatePromptInjections();
+    });
+
+    $(document).on('change', '#bm2_affinity_slider', () => {
+        renderRelationshipsTab();
+    });
+
+    $(document).on('click', '#bm2_aff_minus', () => {
+        const profile = getProfileData();
+        const rel = profile.relationships.find((r) => r && r.id === selectedRelId);
+        if (!rel) return;
+        rel.affinity = clampAffinity(rel.affinity - 5);
+        updateBipolarMeterUI(rel.affinity);
+        saveSettings();
+        updatePromptInjections();
+        renderRelationshipsTab();
+    });
+
+    $(document).on('click', '#bm2_aff_plus', () => {
+        const profile = getProfileData();
+        const rel = profile.relationships.find((r) => r && r.id === selectedRelId);
+        if (!rel) return;
+        rel.affinity = clampAffinity(rel.affinity + 5);
+        updateBipolarMeterUI(rel.affinity);
+        saveSettings();
+        updatePromptInjections();
+        renderRelationshipsTab();
+    });
+
+    $(document).on('change', '#bm2_rel_summary', function () {
+        const profile = getProfileData();
+        const rel = profile.relationships.find((r) => r && r.id === selectedRelId);
+        if (!rel) return;
+        rel.summary = $(this).val().trim();
+        saveSettings();
+        updatePromptInjections();
+    });
+
+    $(document).on('click', '#bm2_btn_add_event', () => {
+        const text = $('#bm2_new_event_text').val().trim();
+        if (!text) return;
+        const profile = getProfileData();
+        const rel = profile.relationships.find((r) => r && r.id === selectedRelId);
+        if (!rel) return;
+        rel.events.push({
+            date: profile.currentStoryDate || 'Событие',
+            text,
+        });
+        $('#bm2_new_event_text').val('');
+        saveSettings();
+        updatePromptInjections();
+        renderSelectedRelationshipDetails();
+    });
+
+    $(document).on('click', '.bm2_event_del', function () {
+        const idx = Number($(this).data('ev-idx'));
+        const profile = getProfileData();
+        const rel = profile.relationships.find((r) => r && r.id === selectedRelId);
+        if (!rel || !Array.isArray(rel.events)) return;
+        rel.events.splice(idx, 1);
+        saveSettings();
+        updatePromptInjections();
+        renderSelectedRelationshipDetails();
+    });
+
+    $(document).on('click', '#bm2_graph_reset', () => {
+        graphState.offsetX = 0;
+        graphState.offsetY = 0;
+        drawObsidianGraph();
+    });
+
+    $(document).on('click', '#bm2_graph_arrange', () => {
+        const metrics = syncCanvasResolution();
+        const w = metrics ? metrics.width : 340;
+        const h = metrics ? metrics.height : 360;
+        autoArrangeNodesInCircle(w, h);
+        renderGraphNodes();
+        toastr.success('Узлы аккуратно распределены по кругу', 'BlueMoon');
+    });
+
+    $(document).on('click', '.bm2_chip[data-genre-id]', function () {
+        const gId = $(this).data('genre-id');
+        const s = getSettings();
+        const arr = s.styleConfig.genres || [];
+        const idx = arr.indexOf(gId);
+        if (idx >= 0) {
+            arr.splice(idx, 1);
+        } else {
+            arr.push(gId);
+        }
+        s.styleConfig.genres = arr;
+        saveSettings();
+        updatePromptInjections();
+        renderStyleTab();
+    });
+
+    $(document).on('change', '#bm2_genre_intensity', function () {
+        const s = getSettings();
+        s.styleConfig.genreIntensity = $(this).val();
+        saveSettings();
+        updatePromptInjections();
+    });
+
+    $(document).on('change', '#bm2_custom_genre', function () {
+        const s = getSettings();
+        s.styleConfig.customGenre = $(this).val().trim();
+        saveSettings();
+        updatePromptInjections();
+    });
+
+    $(document).on('change', '#bm2_author_voice', function () {
+        const s = getSettings();
+        s.styleConfig.authorVoice = $(this).val().trim();
+        saveSettings();
+        updatePromptInjections();
+    });
+
+    $(document).on('input change', '#bm2_sl_action, #bm2_sl_description, #bm2_sl_dialogue, #bm2_sl_pacing', function () {
+        const id = this.id.replace('bm2_sl_', '');
+        const val = Number($(this).val());
+        const s = getSettings();
+        s.styleConfig.sliders[id] = val;
+        $(`#bm2_lbl_${id}`).text(`${val}%`);
+        saveSettings();
+        updatePromptInjections();
+    });
+
+    $(document).on('change', '#bm2_custom_directives', function () {
+        const s = getSettings();
+        s.styleConfig.customDirectives = $(this).val().trim();
+        saveSettings();
+        updatePromptInjections();
+    });
+
+    $(document).on('click', '.bm2_theme_card', function () {
+        const themeId = $(this).data('theme-id');
+        applyTheme(themeId);
+        renderThemesTab();
+        drawObsidianGraph();
+    });
+
+    $(document).on('click', '#bm2_btn_preview_prompt', () => {
+        const rel = buildRelationshipsPrompt();
+        const st = buildStylePrompt();
+        const combined = [rel, st].filter(Boolean).join('\n\n====================\n\n') || 'Промпт пуст (модули выключены).';
+        const ctx = getContext();
+        const escaped = `<pre style="text-align:left; white-space:pre-wrap; font-size:0.78rem; max-height:65vh; overflow:auto; padding:10px; background:rgba(0,0,0,0.35); border-radius:8px;">${escapeHtml(combined)}</pre>`;
+        if (ctx.callGenericPopup && ctx.POPUP_TYPE) {
+            ctx.callGenericPopup(escaped, ctx.POPUP_TYPE.TEXT, '', { wide: true, large: true });
+        } else {
+            window.alert(combined);
+        }
+    });
 }
 
 function escapeHtml(str) {
@@ -2707,8 +2374,119 @@ function escapeHtml(str) {
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
+        .replace(/"/g, '&quot;');
+}
+
+function buildFallbackSettingsHtml() {
+    return `
+    <div id="bluemoon_settings_block" class="extension_settings">
+        <div class="inline-drawer">
+            <div class="inline-drawer-toggle inline-drawer-header">
+                <b>🌙 BlueMoon: Relationships &amp; Style Engine</b>
+                <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+            </div>
+            <div class="inline-drawer-content">
+                <div class="flex-container flexFlowColumn" style="gap: 8px; padding: 6px 0;">
+                    <label class="checkbox_label">
+                        <input id="bm2_master_enabled" type="checkbox" />
+                        <span>Включить расширение BlueMoon</span>
+                    </label>
+                    <label class="checkbox_label">
+                        <input id="bm2_rel_enabled" type="checkbox" />
+                        <span>Инъекция отношений и событий в промпт</span>
+                    </label>
+                    <label class="checkbox_label">
+                        <input id="bm2_rel_auto_analyze" type="checkbox" />
+                        <span>Авто-анализ всех связей (Персонажи + NPC) после ответа ИИ</span>
+                    </label>
+                    <label class="checkbox_label">
+                        <input id="bm2_isolate_per_chat" type="checkbox" />
+                        <span>Изолировать связи для каждой ветки чата отдельно</span>
+                    </label>
+                    <label class="checkbox_label">
+                        <input id="bm2_style_enabled" type="checkbox" />
+                        <span>Инъекция жанра, стиля автора и ползунков темпа</span>
+                    </label>
+                    <div style="margin-top: 4px;">
+                        <label for="bm2_connection_profile"><small>Профиль подключения для фонового анализа связей:</small></label>
+                        <select id="bm2_connection_profile" class="text_pole" style="width: 100%;"></select>
+                    </div>
+                    <div style="margin-top: 4px;">
+                        <label for="bm2_injection_depth"><small>Глубина инъекции в чат (Depth, рекомендуется 1):</small></label>
+                        <input id="bm2_injection_depth" type="number" class="text_pole" min="0" max="20" step="1" style="width: 90px;" />
+                    </div>
+                    <div style="margin-top: 6px;">
+                        <div id="bm2_open_modal_from_settings" class="menu_button interactable" style="text-align: center; padding: 8px;">
+                            🌙 Открыть панель BlueMoon
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>`;
+}
+
+async function initSettingsPanel() {
+    const s = getSettings();
+    try {
+        if (!document.getElementById('bluemoon_settings_block')) {
+            let html = '';
+            try {
+                const settingsUrl = new URL('./settings.html', import.meta.url).href;
+                html = await $.get(settingsUrl);
+            } catch {
+                html = buildFallbackSettingsHtml();
+            }
+            $('#extensions_settings2').append(html);
+        }
+
+        $('#bm2_master_enabled').prop('checked', Boolean(s.enabled)).off('change').on('change', function () {
+            s.enabled = $(this).is(':checked');
+            saveSettings();
+            updatePromptInjections();
+        });
+
+        $('#bm2_rel_enabled').prop('checked', Boolean(s.relEnabled)).off('change').on('change', function () {
+            s.relEnabled = $(this).is(':checked');
+            saveSettings();
+            updatePromptInjections();
+        });
+
+        $('#bm2_rel_auto_analyze').prop('checked', Boolean(s.relAutoAnalyze)).off('change').on('change', function () {
+            s.relAutoAnalyze = $(this).is(':checked');
+            saveSettings();
+        });
+
+        $('#bm2_isolate_per_chat').prop('checked', Boolean(s.isolatePerChat)).off('change').on('change', function () {
+            s.isolatePerChat = $(this).is(':checked');
+            saveSettings();
+            updatePromptInjections();
+        });
+
+        $('#bm2_style_enabled').prop('checked', Boolean(s.styleEnabled)).off('change').on('change', function () {
+            s.styleEnabled = $(this).is(':checked');
+            saveSettings();
+            updatePromptInjections();
+        });
+
+        $('#bm2_injection_depth').val(s.injectionDepth ?? 1).off('change').on('change', function () {
+            s.injectionDepth = Math.max(0, Math.min(20, Number($(this).val()) || 1));
+            saveSettings();
+            updatePromptInjections();
+        });
+
+        populateConnectionProfiles();
+        $('#bm2_connection_profile').off('change').on('change', function () {
+            s.connectionProfileId = $(this).val() || '';
+            saveSettings();
+        });
+
+        $(document).off('click.bm2settings', '#bm2_open_modal_from_settings').on('click.bm2settings', '#bm2_open_modal_from_settings', (ev) => {
+            openBlueMoonModal(ev);
+        });
+    } catch (err) {
+        console.warn(`[${MODULE_NAME}] Could not load settings.html:`, err);
+    }
 }
 
 async function init() {
@@ -2716,62 +2494,42 @@ async function init() {
     isInitialized = true;
 
     try {
-        getSettings();
-
-        // 1. Immediately mount modal and bind events (never blocked by network calls)
         ensureModalInDom();
         injectWandMenuButton();
-
-        // Keep checking wand menu in case SillyTavern re-renders #extensionsMenu later
         setInterval(injectWandMenuButton, 2500);
 
-        // 2. Mount settings panel in Extensions tab (with built-in fallback if settings.html fails)
-        if (!$('.bluemoon-v2-settings').length) {
-            let settingsHtml = '';
-            try {
-                const moduleUrl = new URL('./settings.html', import.meta.url).href;
-                settingsHtml = await $.get(moduleUrl);
-            } catch (_) {
-                settingsHtml = buildFallbackSettingsHtml();
-            }
-            if (!settingsHtml || !settingsHtml.trim()) {
-                settingsHtml = buildFallbackSettingsHtml();
-            }
-            const targetContainer = $('#extensions_settings2').length
-                ? $('#extensions_settings2')
-                : $('#extensions_settings');
-            targetContainer.append(settingsHtml);
-            bindSettingsPanelEvents();
+        await initSettingsPanel();
+        updatePromptInjections();
+
+        const ctx = getContext();
+        const { eventSource, event_types } = ctx;
+        if (eventSource && event_types) {
+            eventSource.on(event_types.CHAT_CHANGED, () => {
+                selectedRelId = null;
+                injectWandMenuButton();
+                updatePromptInjections();
+                if ($('#bm2_overlay').is(':visible')) {
+                    renderRelationshipsTab();
+                    renderGraphNodes();
+                }
+            });
+
+            eventSource.on(event_types.MESSAGE_RECEIVED, () => {
+                setTimeout(() => {
+                    analyzeAllRelationshipsWithLLM(false);
+                }, 700);
+            });
         }
-
-        updateExtensionPrompts();
-
-        eventSource.on(event_types.CHAT_CHANGED, () => {
-            selectedRelId = null;
-            injectWandMenuButton();
-            updateExtensionPrompts();
-            if ($('#bm2_overlay').hasClass('bm2_visible')) {
-                renderRelationshipsTab();
-                renderGraphCanvas();
-            }
-        });
-
-        eventSource.on(event_types.MESSAGE_RECEIVED, () => {
-            setTimeout(() => {
-                analyzeAllRelationshipsDelta(false);
-            }, 600);
-        });
-
-        console.log(`[${MODULE_NAME}] BlueMoon v2.5.3 initialized successfully.`);
+        console.log(`[${MODULE_NAME}] v2.5.4 loaded successfully.`);
     } catch (err) {
-        console.error(`[${MODULE_NAME}] Initialization failed:`, err);
+        console.error(`[${MODULE_NAME}] Initialization error:`, err);
     }
 }
 
-// Run immediately on jQuery ready AND hook APP_READY as backup
 jQuery(() => {
     init();
+    const ctx = getContext();
+    if (ctx.eventSource && ctx.event_types?.APP_READY) {
+        ctx.eventSource.on(ctx.event_types.APP_READY, () => init());
+    }
 });
-if (eventSource && event_types?.APP_READY) {
-    eventSource.on(event_types.APP_READY, init);
-        }
