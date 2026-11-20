@@ -1,6 +1,6 @@
 /* ==========================================================================
-   BlueMoon v2.5.5: Relationships, Obsidian Graph & Narrative Style Engine
-   Gradient Glow Borders Restored + Mobile Viewport & Directory Fixes
+   BlueMoon v2.6.0: Relationships, Obsidian Graph, RP Timeline & Style Engine
+   Gradient Glow Borders + Fixed Header Badge Overlap + RP Date Bar
    ========================================================================== */
 
 :root {
@@ -83,46 +83,49 @@
 }
 
 /* --------------------------------------------------------------------------
-   Header & Tabs
+   Header & Tabs (FIXED: No overlapping on character badge!)
    -------------------------------------------------------------------------- */
 .bm2_header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
-    padding: 11px 14px;
+    gap: 6px;
+    padding: 10px 12px;
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, var(--bm2-bg-card) 100%);
     border-bottom: 1.5px solid var(--bm2-border);
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
     flex-shrink: 0 !important;
+    flex-wrap: nowrap;
 }
 
 .bm2_title_wrap {
     display: flex;
     align-items: center;
-    gap: 7px;
+    gap: 6px;
     min-width: 0;
-    flex: 1;
+    flex: 1 1 auto;
+    overflow: hidden;
 }
 
 .bm2_moon_icon {
-    font-size: 1.25rem;
+    font-size: 1.15rem;
     flex-shrink: 0;
     filter: drop-shadow(0 0 8px var(--bm2-accent));
 }
 
 .bm2_title_wrap h3 {
     margin: 0;
-    font-size: 1.05rem;
+    font-size: 0.98rem;
     font-weight: 800;
     color: var(--bm2-text-main);
     white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .bm2_badge_char {
-    font-size: 0.76rem;
+    font-size: 0.72rem;
     font-weight: 700;
-    padding: 3px 10px;
+    padding: 2px 8px;
     border-radius: 999px;
     border: 1.5px solid transparent;
     background:
@@ -132,34 +135,35 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    min-width: 48px;
-    max-width: 110px;
-    box-shadow: 0 0 10px var(--bm2-glow);
+    min-width: 0;
+    max-width: 88px;
+    flex-shrink: 1;
+    box-shadow: 0 0 8px var(--bm2-glow);
 }
 
 .bm2_header_actions {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 5px;
     flex-shrink: 0;
 }
 
 .bm2_prompt_top_btn,
 .bm2_close_btn {
-    min-height: 38px;
-    padding: 6px 11px;
-    border-radius: 11px;
+    min-height: 36px;
+    padding: 5px 9px;
+    border-radius: 10px;
     border: 1.5px solid transparent;
     background:
         linear-gradient(var(--bm2-bg-input), var(--bm2-bg-input)) padding-box,
         linear-gradient(135deg, var(--bm2-accent), var(--bm2-accent-2)) border-box;
     color: var(--bm2-text-main);
-    font-size: 0.8rem;
+    font-size: 0.76rem;
     font-weight: 700;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
     white-space: nowrap;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
 }
@@ -200,11 +204,9 @@
 }
 
 .bm2_tab_btn.bm2_active {
-    background:
-        linear-gradient(135deg, rgba(255, 255, 255, 0.09), rgba(0, 0, 0, 0.25)) padding-box,
-        linear-gradient(135deg, var(--bm2-accent), var(--bm2-accent-2)) border-box;
-    background-color: var(--bm2-bg-card);
-    color: var(--bm2-accent);
+    background: linear-gradient(135deg, var(--bm2-accent), var(--bm2-accent-2)) !important;
+    color: #0b0d14 !important;
+    font-weight: 800;
     box-shadow: 0 0 14px var(--bm2-glow);
 }
 
@@ -252,6 +254,31 @@
     gap: 10px;
     flex-shrink: 0 !important;
     box-sizing: border-box;
+}
+
+.bm2_rp_date_card {
+    background:
+        linear-gradient(135deg, var(--bm2-bg-card), var(--bm2-bg-input)) padding-box,
+        linear-gradient(135deg, var(--bm2-accent-2), var(--bm2-accent)) border-box;
+}
+
+.bm2_rp_date_toggle {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 0.77rem;
+    color: var(--bm2-text-muted);
+    cursor: pointer;
+    line-height: 1.35;
+    user-select: none;
+}
+
+.bm2_rp_date_toggle input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    margin-top: 1px;
+    accent-color: var(--bm2-accent);
+    flex-shrink: 0;
 }
 
 .bm2_card_header {
@@ -975,4 +1002,4 @@ input[type="range"].bm2_range {
     max-height: 280px;
     overflow-y: auto;
     color: var(--bm2-text-main);
-       }
+   }
