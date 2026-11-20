@@ -1,6 +1,7 @@
 /**
- * BlueMoon v2.5.5 (based strictly on working v2.5.0):
- * - Exact v2.5.0 DOM structure, CSS classes (.bm2_open, .bm2_active, .bm2_tab_btn) & MODULE_NAME = 'bluemoon_v2'
+ * BlueMoon v2.6.0 (based strictly on working v2.5.5):
+ * - In-Universe Roleplay Date & Timeline Bar (manual set + automatic AI scene tracking, ZERO real-world phone dates)
+ * - Exact v2.5.0/v2.5.5 DOM structure, CSS classes (.bm2_open, .bm2_active, .bm2_tab_btn) & MODULE_NAME = 'bluemoon_v2'
  * - Multi-Character & NPC Relationship Graph, Structured Directory (By Character & By Section)
  * - 25 Built-in Roles + Custom Manual Role Creator
  * - Always-visible Romantic/Crush Mutuality & Secrecy selector across ALL relationship roles
@@ -641,6 +642,7 @@ const DEFAULT_SETTINGS = {
     masterEnabled: true,
     relEnabled: true,
     relAutoAnalyze: true,
+    rpDateAutoTrack: true,
     isolatePerChat: false,
     styleEnabled: true,
     connectionProfileId: '',
@@ -835,6 +837,7 @@ function getActiveCharProfile() {
             s.characterData[key] = structuredClone(donor);
         } else {
             s.characterData[key] = {
+                rpDate: '',
                 nodes: [
                     { id: 'node_bot', name: botName, type: 'bot', avatar: botAvatar, x: 115, y: 200 },
                     { id: 'node_persona', name: personaName, type: 'persona', avatar: '', x: 255, y: 200 },
@@ -874,6 +877,10 @@ function getActiveCharProfile() {
     }
 
     const prof = s.characterData[key];
+
+    if (typeof prof.rpDate !== 'string') {
+        prof.rpDate = '';
+    }
 
     if (!Array.isArray(prof.nodes)) {
         prof.nodes = [
@@ -938,6 +945,14 @@ function getNodeById(prof, nodeId) {
     return prof.nodes.find((n) => n.id === nodeId) || { id: nodeId, name: 'Неизвестный', type: 'npc', avatar: '' };
 }
 
+/**
+ * Helper: Return current In-Universe RP Date (never returns real-world system date!)
+ */
+function getFallbackRpDateLabel(prof) {
+    const d = (prof?.rpDate || '').trim();
+    return d || 'По сюжету РП';
+}
+
 function describeAffinityLevel(val) {
     if (val <= -75) return `${val}% (BITTER HATRED / DEEP HOSTILITY — active antagonism, distrust, cold or aggressive behavior)`;
     if (val <= -40) return `${val}% (STRONG DISLIKE / RESENTMENT — unresolved conflict, irritation, sharp friction)`;
@@ -957,19 +972,23 @@ function getSliderForceLabel(val) {
 }
 
 /**
- * Build English prompt block for all relationships & NPCs with strict Epistemic Secrecy Firewall
+ * Build English prompt block for RP Timeline, all relationships & NPCs with strict Epistemic Secrecy Firewall
  */
 function buildRelationshipPromptText() {
     const s = getSettings();
     if (!s.masterEnabled || !s.relEnabled) return '';
 
     const prof = getActiveCharProfile();
-    if (!prof.relationships.length) return '';
+    if (!prof.relationships.length && !prof.rpDate) return '';
 
     const lines = [
         `[MANDATORY CHARACTER & NPC RELATIONSHIP NETWORK — STRICT CANON & EPISTEMIC ISOLATION]`,
         `CRITICAL INSTRUCTION: You MUST portray every interaction, dialogue tone, body language, and knowledge boundary strictly according to the relationship network below. NEVER contradict these roles, affinity scores (-100% to +100%), secrecy rules, or dates.`,
     ];
+
+    if (prof.rpDate && prof.rpDate.trim()) {
+        lines.push(`CURRENT IN-UNIVERSE ROLEPLAY DATE / TIME: "${prof.rpDate.trim()}". Maintain strict temporal continuity with this in-story date/time (ignore real-world calendar dates).`);
+    }
 
     const npcNodes = prof.nodes.filter((n) => n.type === 'npc');
     if (npcNodes.length > 0) {
@@ -1029,7 +1048,7 @@ function buildRelationshipPromptText() {
 
         if (rel.memories && rel.memories.length > 0) {
             const recent = rel.memories.slice(-5);
-            lines.push(`  - Shared History & Key Events: ${recent.map((m) => `(${m.date || 'Past'}) ${m.text}`).join('; ')}`);
+            lines.push(`  - Shared History & Key Events: ${recent.map((m) => `(${m.date || 'Story Event'}) ${m.text}`).join('; ')}`);
         }
     }
 
@@ -1171,18 +1190,19 @@ async function runAuxiliaryLLMPrompt(systemPrompt, userPrompt, maxTokens = 950) 
 }
 
 /**
- * Auto-scan ALL relationships (Bot, Persona, and all NPCs) after every AI message
+ * Auto-scan ALL relationships AND in-universe Roleplay Date after every AI message
  */
-async function analyzeAllRelationshipsDelta() {
+async function analyzeAllRelationshipsDelta(forceManual = false) {
     const s = getSettings();
-    if (!s.masterEnabled || !s.relEnabled || !s.relAutoAnalyze || isAnalyzing) return;
+    if (!forceManual && (!s.masterEnabled || !s.relEnabled || !s.relAutoAnalyze)) return;
+    if (isAnalyzing) return;
 
     const ctx = SillyTavern.getContext();
     const chat = ctx.chat || [];
     if (chat.length < 1) return;
 
     const lastMsg = chat[chat.length - 1];
-    if (!lastMsg || lastMsg.is_user || lastMsg.is_system) return;
+    if (!forceManual && (!lastMsg || lastMsg.is_user || lastMsg.is_system)) return;
 
     const prof = getActiveCharProfile();
     if (!prof.relationships || prof.relationships.length === 0) return;
@@ -1190,7 +1210,7 @@ async function analyzeAllRelationshipsDelta() {
     isAnalyzing = true;
     try {
         const recentSlice = chat
-            .slice(-4)
+            .slice(-5)
             .map((m) => `${m.name}: ${m.mes}`)
             .join('\n---\n');
 
@@ -1211,36 +1231,51 @@ async function analyzeAllRelationshipsDelta() {
             };
         });
 
+        const currentRpDateStr = (prof.rpDate || '').trim() || 'Не установлена (определи по тексту сцены)';
+
         const allRoles = getAllRoles();
-        const sysPrompt = `You are an objective relationship & NPC interaction tracker for a roleplay story.
-Analyze the latest scene and determine which relationships from the provided list experienced a meaningful emotional shift, interaction, conflict, confession, or milestone.
+        const sysPrompt = `You are an objective in-universe timeline & relationship tracker for a roleplay story.
+CRITICAL TIMELINE RULE: NEVER use real-world calendar dates (like 2026 or today's real date). Track ONLY the fictional in-universe roleplay date, day of the week, season, or time of day based on the story text and the "Current RP Date".
+1. If time passes in the scene (e.g., morning comes, next day, a week later, specific date/time mentioned, or if Current RP Date was empty), output the updated in-universe date/time in Russian in "currentRpDate" (e.g., "15 октября, Суббота, утро" or "День 2, вечер в больнице"). If unchanged, repeat the Current RP Date.
+2. For any relationship pair that experienced a meaningful emotional shift, conflict, confession, or key event in the latest scene, add an entry in "updates".
+3. For "memoryDate", write the IN-UNIVERSE RP date/time of that event in Russian (e.g., "14 октября, ночь" or "День 1, приёмный покой"), NEVER a real-world date.
 Return ONLY a valid JSON object (no markdown fences) with this exact structure:
 {
+  "currentRpDate": "<Актуальная дата / день / время суток в ролевой на русском>",
   "updates": [
     {
-      "relId": "<exact relId from the list>",
-      "delta": <integer from -15 to +15, or 0 if no interaction/change>,
-      "reason": "<brief explanation in Russian, max 12 words>",
-      "newMemory": "<if an important event/confession/fight happened between this pair in the last message, write 1 short sentence in Russian, otherwise empty string>",
-      "newRole": "<optional: keep empty string unless their relationship status explicitly changed in this scene, e.g. from crush to dating, or dating to exes>",
-      "newMutuality": "<optional: if romantic secrecy changed in this scene, e.g. secret_one_sided to open_one_sided or open_mutual, otherwise empty string>"
+      "relId": "<relId from list>",
+      "delta": <integer from -15 to +15>,
+      "reason": "<краткая причина на русском>",
+      "newMemory": "<краткая запись важного события на русском или пустая строка>",
+      "memoryDate": "<дата этого события ВНУТРИ РОЛЕВОЙ на русском>",
+      "newRole": "<optional valid role key if status changed, else empty string>",
+      "newMutuality": "<optional mutualStatus key if changed, else empty string>"
     }
   ]
-}
-Only include pairs in "updates" that actually interacted or were emotionally affected in the latest message.`;
+}`;
 
-        const userPrompt = `Tracked Relationships JSON:\n${JSON.stringify(pairsSummary, null, 2)}\n\nRecent Scene:\n${recentSlice}`;
+        const userPrompt = `Current RP Date: ${currentRpDateStr}\n\nTracked Relationships JSON:\n${JSON.stringify(pairsSummary, null, 2)}\n\nRecent Scene:\n${recentSlice}`;
 
-        const raw = await runAuxiliaryLLMPrompt(sysPrompt, userPrompt, 700);
+        const raw = await runAuxiliaryLLMPrompt(sysPrompt, userPrompt, 750);
         const match = String(raw).match(/\{[\s\S]*\}/);
         if (!match) return;
 
         const parsed = JSON.parse(match[0]);
-        const updates = Array.isArray(parsed.updates) ? parsed.updates : [];
-        if (updates.length === 0) return;
-
         const toastLines = [];
         let changedAny = false;
+
+        // 1. Update In-Universe RP Date if auto-tracking is enabled (or if forceManual / empty)
+        if (typeof parsed.currentRpDate === 'string' && parsed.currentRpDate.trim()) {
+            const detectedDate = parsed.currentRpDate.trim();
+            if ((s.rpDateAutoTrack !== false || !prof.rpDate || forceManual) && detectedDate !== prof.rpDate) {
+                prof.rpDate = detectedDate;
+                changedAny = true;
+                toastLines.push(`⏳ Дата РП: <b>${escapeHtml(detectedDate)}</b>`);
+            }
+        }
+
+        const updates = Array.isArray(parsed.updates) ? parsed.updates : [];
 
         for (const upd of updates) {
             const rel = prof.relationships.find((r) => r.id === upd.relId);
@@ -1252,19 +1287,21 @@ Only include pairs in "updates" that actually interacted or were emotionally aff
             delta = Math.max(-15, Math.min(15, Math.round(delta)));
 
             const newMem = typeof upd.newMemory === 'string' ? upd.newMemory.trim() : '';
+            const memDateRaw = typeof upd.memoryDate === 'string' ? upd.memoryDate.trim() : '';
+            const eventRpDate = memDateRaw || getFallbackRpDateLabel(prof);
             const reason = typeof upd.reason === 'string' ? upd.reason.trim() : '';
 
             if (delta !== 0) {
                 rel.satisfaction = Math.max(-100, Math.min(100, rel.satisfaction + delta));
                 changedAny = true;
                 const sign = delta > 0 ? `+${delta}%` : `${delta}%`;
-                toastLines.push(`${fromNode.name} ↔ ${toNode.name}: ${sign} (${rel.satisfaction}%)${reason ? ` — ${reason}` : ''}`);
+                toastLines.push(`${escapeHtml(fromNode.name)} ↔ ${escapeHtml(toNode.name)}: ${sign} (${rel.satisfaction}%)${reason ? ` — ${escapeHtml(reason)}` : ''}`);
             }
 
             if (upd.newRole && allRoles[upd.newRole] && upd.newRole !== rel.role) {
                 rel.role = upd.newRole;
                 changedAny = true;
-                toastLines.push(`Статус ${fromNode.name} ↔ ${toNode.name}: ${allRoles[rel.role].label}`);
+                toastLines.push(`Статус ${escapeHtml(fromNode.name)} ↔ ${escapeHtml(toNode.name)}: ${escapeHtml(allRoles[rel.role].label)}`);
             }
 
             if (upd.newMutuality && CRUSH_MUTUALITY[upd.newMutuality] && upd.newMutuality !== rel.mutualStatus) {
@@ -1277,7 +1314,7 @@ Only include pairs in "updates" that actually interacted or were emotionally aff
                 if (!exists) {
                     rel.memories.push({
                         id: Date.now() + Math.floor(Math.random() * 1000),
-                        date: new Date().toLocaleDateString('ru-RU'),
+                        date: eventRpDate,
                         text: newMem,
                     });
                     changedAny = true;
@@ -1292,11 +1329,13 @@ Only include pairs in "updates" that actually interacted or were emotionally aff
                 drawRelationshipGraph();
             }
             if (toastLines.length > 0 && window.toastr) {
-                window.toastr.info(toastLines.join('<br>'), '🌙 BlueMoon: Динамика связей', {
+                window.toastr.info(toastLines.join('<br>'), '🌙 BlueMoon: Сюжет и Связи', {
                     escapeHtml: false,
-                    timeOut: 5000,
+                    timeOut: 5500,
                 });
             }
+        } else if (forceManual && window.toastr) {
+            window.toastr.info('Сцена проанализирована, новых сдвигов не обнаружено.', '🌙 BlueMoon');
         }
     } catch (err) {
         console.error(`[${MODULE_NAME}] Auto multi-relationship analysis error:`, err);
@@ -1306,7 +1345,58 @@ Only include pairs in "updates" that actually interacted or were emotionally aff
 }
 
 /**
- * Export current character's Nodes, Relationships & Custom Roles to JSON
+ * Dedicated button: Detect/refresh ONLY the In-Universe RP Date from chat & lore
+ */
+async function detectRpDateWithAI() {
+    const ctx = SillyTavern.getContext();
+    const prof = getActiveCharProfile();
+    const chat = ctx.chat || [];
+
+    let charScenario = '';
+    if (ctx.characterId !== undefined && ctx.characters?.[ctx.characterId]) {
+        const ch = ctx.characters[ctx.characterId];
+        charScenario = [ch.scenario, ch.description].filter(Boolean).join('\n').slice(0, 1500);
+    }
+
+    const recentSlice = chat
+        .slice(-10)
+        .map((m) => `${m.name}: ${m.mes}`)
+        .join('\n---\n')
+        .slice(0, 3000);
+
+    if (window.toastr) {
+        window.toastr.info('Определяю текущую дату и время суток по тексту ролевой...', '⏳ BlueMoon');
+    }
+
+    const sysPrompt = `You are a roleplay timeline extractor.
+Read the scenario and recent chat messages and determine the current IN-UNIVERSE date, season, day of the week, or time of day in the story.
+CRITICAL: NEVER output the real-world year/date unless explicitly stated in the story text. If no exact calendar date is mentioned in the story, describe the story day and time of day in Russian (e.g., "Осень, День 3, поздний вечер" or "12 ноября, Суббота, ночь").
+Return ONLY the short in-universe date/time string in Russian (maximum 55 characters, no quotes, no explanation).`;
+
+    const userPrompt = `Current saved RP date: ${prof.rpDate || 'none'}\n\nScenario:\n${charScenario}\n\nRecent Chat:\n${recentSlice}`;
+
+    try {
+        const raw = await runAuxiliaryLLMPrompt(sysPrompt, userPrompt, 120);
+        const cleaned = String(raw || '')
+            .replace(/^["'«]+|["'»]+$/g, '')
+            .split('\n')[0]
+            .trim();
+        if (cleaned) {
+            prof.rpDate = cleaned;
+            saveSettings();
+            renderRelationshipsPane();
+            if (window.toastr) {
+                window.toastr.success(`Дата в ролевой обновлена: ${cleaned}`, '⏳ BlueMoon');
+            }
+        }
+    } catch (err) {
+        console.error(`[${MODULE_NAME}] RP Date detection error:`, err);
+        if (window.toastr) window.toastr.error('Не удалось считать дату из чата', 'BlueMoon');
+    }
+}
+
+/**
+ * Export current character's Nodes, Relationships, RP Date & Custom Roles to JSON
  */
 function exportRelationshipsToJson() {
     try {
@@ -1315,9 +1405,10 @@ function exportRelationshipsToJson() {
         const { botName } = getCurrentNamesAndAvatars();
         const safeName = botName.replace(/[^a-zA-Zа-яА-Я0-9_-]/g, '_') || 'character';
         const payload = {
-            bluemoon_version: '2.5.5',
+            bluemoon_version: '2.6.0',
             exportedAt: new Date().toISOString(),
             characterName: botName,
+            rpDate: prof.rpDate || '',
             customRoles: s.customRoles || {},
             nodes: prof.nodes,
             relationships: prof.relationships,
@@ -1344,7 +1435,7 @@ function exportRelationshipsToJson() {
 }
 
 /**
- * Import Nodes, Relationships & Custom Roles from JSON
+ * Import Nodes, Relationships, RP Date & Custom Roles from JSON
  */
 function importRelationshipsFromJson(file) {
     if (!file) return;
@@ -1370,6 +1461,12 @@ function importRelationshipsFromJson(file) {
             const replaceAll = confirm(
                 'Заменить текущие связи и NPC данными из файла?\n\nНажмите «ОК» для полной замены, или «Отмена», чтобы объединить (добавить недостающих NPC и связи к текущим).'
             );
+
+            if (typeof data.rpDate === 'string' && data.rpDate.trim()) {
+                if (replaceAll || !prof.rpDate) {
+                    prof.rpDate = data.rpDate.trim();
+                }
+            }
 
             if (replaceAll) {
                 prof.nodes = data.nodes;
@@ -1495,18 +1592,19 @@ async function autoBuildGraphWithAI() {
         .slice(0, 3500);
 
     if (window.toastr) {
-        window.toastr.info('Нейросеть сканирует лор и чат для построения древа связей...', '🌙 BlueMoon');
+        window.toastr.info('Нейросеть сканирует лор и чат для построения древа связей и даты РП...', '🌙 BlueMoon');
     }
 
     const allRoles = getAllRoles();
     const validRoles = Object.keys(allRoles).join(', ');
-    const sysPrompt = `You are a story analyst building an Obsidian-style relationship graph.
-Identify key NPCs mentioned in the character lore or chat, and determine relationships between "${botName}", "${personaName}", and any NPCs.
+    const sysPrompt = `You are a story analyst building an Obsidian-style relationship graph and tracking the in-universe roleplay timeline.
+Identify key NPCs mentioned in the character lore or chat, determine the current IN-UNIVERSE roleplay date/time (NEVER use real-world 2026 dates), and determine relationships between "${botName}", "${personaName}", and any NPCs.
 Valid role IDs: ${validRoles}.
 Valid mutualStatus: none, secret_one_sided, secret_reverse, open_one_sided, unrequited, secret_mutual, secret_affair, open_mutual.
 Affinity score ("satisfaction") ranges from -100 (hatred/enemies) to +100 (deep love/devotion), where 0 is neutral strangers.
 Return ONLY valid JSON (no markdown) in this exact format:
 {
+  "currentRpDate": "<Текущая дата / время суток в ролевой на русском>",
   "npcs": ["NPC Name 1", "NPC Name 2"],
   "links": [
     {
@@ -1515,19 +1613,24 @@ Return ONLY valid JSON (no markdown) in this exact format:
       "role": "friends",
       "mutualStatus": "none",
       "satisfaction": 35,
-      "memory": "Краткий факт об их связи на русском"
+      "memory": "Краткий факт об их связи на русском",
+      "memoryDate": "Когда это произошло по сюжету РП (напр. Предыстория / День 1)"
     }
   ]
 }`;
 
-    const userPrompt = `Main Character: ${botName}\nUser Persona: ${personaName}\n\nCharacter Lore:\n${charDescription}\n\nChat Excerpt:\n${recentChat}`;
+    const userPrompt = `Current RP Date: ${prof.rpDate || 'Не задана'}\nMain Character: ${botName}\nUser Persona: ${personaName}\n\nCharacter Lore:\n${charDescription}\n\nChat Excerpt:\n${recentChat}`;
 
     try {
-        const raw = await runAuxiliaryLLMPrompt(sysPrompt, userPrompt, 800);
+        const raw = await runAuxiliaryLLMPrompt(sysPrompt, userPrompt, 850);
         const match = String(raw).match(/\{[\s\S]*\}/);
         if (!match) throw new Error('JSON не найден в ответе ИИ');
 
         const data = JSON.parse(match[0]);
+
+        if (typeof data.currentRpDate === 'string' && data.currentRpDate.trim()) {
+            prof.rpDate = data.currentRpDate.trim();
+        }
 
         if (Array.isArray(data.npcs)) {
             for (const npcRaw of data.npcs) {
@@ -1589,10 +1692,13 @@ Return ONLY valid JSON (no markdown) in this exact format:
 
                 if (lnk.memory && String(lnk.memory).trim()) {
                     const memText = String(lnk.memory).trim();
+                    const memDate =
+                        (typeof lnk.memoryDate === 'string' && lnk.memoryDate.trim()) ||
+                        getFallbackRpDateLabel(prof);
                     if (!rel.memories.some((m) => m.text === memText)) {
                         rel.memories.push({
                             id: Date.now() + Math.floor(Math.random() * 1000),
-                            date: new Date().toLocaleDateString('ru-RU'),
+                            date: memDate,
                             text: memText,
                         });
                     }
@@ -1603,7 +1709,7 @@ Return ONLY valid JSON (no markdown) in this exact format:
         autoArrangeNodesInCircle();
         renderRelationshipsPane();
         if (window.toastr) {
-            window.toastr.success('Древо связей успешно построено и распределено!', '🌙 BlueMoon');
+            window.toastr.success('Древо связей и дата РП успешно обновлены!', '🌙 BlueMoon');
         }
     } catch (err) {
         console.error(`[${MODULE_NAME}] Auto graph build failed:`, err);
@@ -1671,7 +1777,7 @@ function buildGroupedRelationshipSelectHtml(prof, filteredRels, activeRelId, gro
             const nodeRels = filteredRels.filter((r) => r.fromId === node.id || r.toId === node.id);
             if (nodeRels.length === 0) continue;
             const roleTag = node.type === 'bot' ? 'Бот' : node.type === 'persona' ? 'Персона' : 'NPC';
-            html += `<optgroup label="👤 ${escapeAttr(node.name)} (${roleTag}) — ${nodeRels.length}">`;
+            html += `<optgroup label="👤 ${escapeAttr(node.name)} (${roleTag}) — связей: ${nodeRels.length}">`;
             for (const r of nodeRels) {
                 const fn = getNodeById(prof, r.fromId);
                 const tn = getNodeById(prof, r.toId);
@@ -1719,7 +1825,7 @@ function buildGroupedRelationshipSelectHtml(prof, filteredRels, activeRelId, gro
 
 function buildVisualDirectoryHtml(prof, filteredRels, activeRelId, groupMode) {
     if (filteredRels.length === 0) {
-        return `<div class="bm2_settings_hint">Нет связей для выбранного фильтра персонажа. Нажмите «+ Добавить связь вручную», чтобы создать.</div>`;
+        return `<div class="bm2_settings_hint" style="padding:10px;">Нет связей для выбранного фильтра персонажа. Нажмите «+ Добавить связь вручную», чтобы создать.</div>`;
     }
 
     const renderItemRow = (r) => {
@@ -1740,13 +1846,14 @@ function buildVisualDirectoryHtml(prof, filteredRels, activeRelId, groupMode) {
                   : baseBadge;
 
         return `
-        <div class="bm2_dir_item ${isActive ? 'bm2_active' : ''}" data-rel-id="${escapeAttr(r.id)}">
-            <div class="bm2_dir_pair">
-                <span>${escapeHtml(fn.name)} <b style="color:${rm.color}">${arrow}</b> ${escapeHtml(tn.name)}</span>
-                <span class="bm2_dir_role_badge" style="border-color:${rm.color};color:${rm.color};">${escapeHtml(badgeText)}</span>
+            <div class="bm2_dir_item ${isActive ? 'bm2_active' : ''}" data-rel-id="${escapeAttr(r.id)}">
+                <div class="bm2_dir_pair">
+                    <span>${escapeHtml(fn.name)} <b>${arrow}</b> ${escapeHtml(tn.name)}</span>
+                    <span class="bm2_dir_role_badge" style="border-color:${escapeAttr(rm.color)}; color:${escapeAttr(rm.color)};">${escapeHtml(badgeText)}</span>
+                </div>
+                <span class="bm2_dir_sat" style="color:${satColor};">${sign}</span>
             </div>
-            <span class="bm2_dir_sat" style="color:${satColor};">${sign}</span>
-        </div>`;
+        `;
     };
 
     if (groupMode === 'character') {
@@ -1757,15 +1864,16 @@ function buildVisualDirectoryHtml(prof, filteredRels, activeRelId, groupMode) {
             if (nodeRels.length === 0) continue;
             const roleTag = node.type === 'bot' ? 'Бот' : node.type === 'persona' ? 'Персона' : 'NPC';
             html += `
-            <div class="bm2_dir_section">
-                <div class="bm2_dir_sec_header">
-                    <span>👤 ${escapeHtml(node.name)} (${roleTag})</span>
-                    <span>${nodeRels.length}</span>
+                <div class="bm2_dir_section">
+                    <div class="bm2_dir_sec_header">
+                        <span>👤 ${escapeHtml(node.name)} (${roleTag})</span>
+                        <span>${nodeRels.length}</span>
+                    </div>
+                    <div class="bm2_dir_items">
+                        ${nodeRels.map(renderItemRow).join('')}
+                    </div>
                 </div>
-                <div class="bm2_dir_items">
-                    ${nodeRels.map(renderItemRow).join('')}
-                </div>
-            </div>`;
+            `;
         }
         return html;
     }
@@ -1785,15 +1893,16 @@ function buildVisualDirectoryHtml(prof, filteredRels, activeRelId, groupMode) {
         const list = buckets[catKey];
         if (!list || list.length === 0) continue;
         html += `
-        <div class="bm2_dir_section">
-            <div class="bm2_dir_sec_header">
-                <span>${escapeHtml(catLabel)}</span>
-                <span>${list.length}</span>
+            <div class="bm2_dir_section">
+                <div class="bm2_dir_sec_header">
+                    <span>${escapeHtml(catLabel)}</span>
+                    <span>${list.length}</span>
+                </div>
+                <div class="bm2_dir_items">
+                    ${list.map(renderItemRow).join('')}
+                </div>
             </div>
-            <div class="bm2_dir_items">
-                ${list.map(renderItemRow).join('')}
-            </div>
-        </div>`;
+        `;
     }
     return html;
 }
@@ -1886,67 +1995,63 @@ function buildModalUI() {
                     <span id="bm2_active_char_badge" class="bm2_badge_char">Персонаж</span>
                 </div>
                 <div class="bm2_header_actions">
-                    <button type="button" id="bm2_quick_prompt_btn" class="bm2_prompt_top_btn" title="Посмотреть, что именно передаётся ИИ">
+                    <button id="bm2_quick_prompt_btn" class="bm2_prompt_top_btn" title="Посмотреть активный промпт ИИ">
                         👁️ Промпт
                     </button>
-                    <button type="button" class="bm2_close_btn" id="bm2_close_modal_btn" title="Закрыть окно">
+                    <button id="bm2_close_modal_btn" class="bm2_close_btn" title="Закрыть окно">
                         ✕ Закрыть
                     </button>
                 </div>
             </div>
 
             <div class="bm2_tabs">
-                <button type="button" class="bm2_tab_btn bm2_active" data-tab="rel">💞 Связи</button>
-                <button type="button" class="bm2_tab_btn" data-tab="graph">🕸️ Древо</button>
-                <button type="button" class="bm2_tab_btn" data-tab="style">🎚️ Стиль</button>
-                <button type="button" class="bm2_tab_btn" data-tab="theme">🎨 Темы</button>
+                <button class="bm2_tab_btn bm2_active" data-tab="rel">💞 Связи</button>
+                <button class="bm2_tab_btn" data-tab="graph">🕸️ Древо</button>
+                <button class="bm2_tab_btn" data-tab="style">🎚️ Стиль</button>
+                <button class="bm2_tab_btn" data-tab="theme">🎨 Темы</button>
             </div>
 
             <div class="bm2_body">
-                <!-- PANE 1: RELATIONSHIPS & NPCs -->
-                <div class="bm2_pane bm2_active" id="bm2_pane_rel"></div>
+                <div id="bm2_pane_rel" class="bm2_pane bm2_active"></div>
 
-                <!-- PANE 2: OBSIDIAN RELATIONSHIP GRAPH -->
-                <div class="bm2_pane" id="bm2_pane_graph">
+                <div id="bm2_pane_graph" class="bm2_pane">
                     <div class="bm2_card">
                         <div class="bm2_card_header">
                             <h4 class="bm2_card_title">🕸️ Созвездие Связей (Obsidian Graph)</h4>
-                            <div style="display:flex;gap:6px;flex-wrap:wrap;">
-                                <button type="button" class="bm2_btn" id="bm2_arrange_graph_btn" style="flex:0 0 auto;min-height:32px;padding:4px 9px;" title="Аккуратно раздвинуть все круги по созвездию">
+                            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                                <button id="bm2_arrange_graph_btn" class="bm2_btn" style="min-height:36px; padding:6px 10px;">
                                     🫧 Распределить
                                 </button>
-                                <button type="button" class="bm2_btn bm2_btn_primary" id="bm2_ai_build_graph_btn" style="flex:0 0 auto;min-height:32px;padding:4px 10px;">
+                                <button id="bm2_ai_build_graph_btn" class="bm2_btn bm2_btn_primary" style="min-height:36px; padding:6px 10px;">
                                     ✨ Построить ИИ
                                 </button>
                             </div>
                         </div>
-                        <p class="bm2_settings_hint" style="margin:0;">
+                        <div class="bm2_settings_hint">
                             Перетаскивайте круги пальцем. Нажмите «🫧 Распределить», чтобы красиво раздвинуть персонажей по кругу.
-                        </p>
+                        </div>
                         <div class="bm2_graph_container" id="bm2_graph_wrap">
-                            <canvas id="bm2_graph_canvas"></canvas>
+                            <canvas id="bm2_graph_canvas" width="360" height="430"></canvas>
                             <div class="bm2_graph_toolbar">
-                                <button type="button" class="bm2_graph_tool_btn" id="bm2_zoom_in_btn" title="Приблизить">＋</button>
-                                <button type="button" class="bm2_graph_tool_btn" id="bm2_zoom_out_btn" title="Отдалить">－</button>
-                                <button type="button" class="bm2_graph_tool_btn" id="bm2_zoom_reset_btn" title="Центрировать">⟲</button>
+                                <button id="bm2_zoom_in_btn" class="bm2_graph_tool_btn" title="Приблизить">＋</button>
+                                <button id="bm2_zoom_out_btn" class="bm2_graph_tool_btn" title="Отдалить">－</button>
+                                <button id="bm2_zoom_reset_btn" class="bm2_graph_tool_btn" title="Сбросить вид">⟲</button>
                             </div>
                         </div>
                         <div class="bm2_graph_legend">
-                            <span class="bm2_legend_item"><i class="bm2_legend_dot" style="background:#ff9e64;color:#ff9e64"></i> Влюблённость 💘</span>
-                            <span class="bm2_legend_item"><i class="bm2_legend_dot" style="background:#ff7eb6;color:#ff7eb6"></i> Пара / Любовь</span>
-                            <span class="bm2_legend_item"><i class="bm2_legend_dot" style="background:#ffd700;color:#ffd700"></i> Брак</span>
-                            <span class="bm2_legend_item"><i class="bm2_legend_dot" style="background:#7aa2f7;color:#7aa2f7"></i> Дружба</span>
-                            <span class="bm2_legend_item"><i class="bm2_legend_dot" style="background:#9ece6a;color:#9ece6a"></i> Семья / Дети</span>
-                            <span class="bm2_legend_item"><i class="bm2_legend_dot" style="background:#f7768e;color:#f7768e"></i> Вражда (-%)</span>
+                            <span class="bm2_legend_item"><i class="bm2_legend_dot" style="background:#ff9e64"></i> Влюблённость 💘</span>
+                            <span class="bm2_legend_item"><i class="bm2_legend_dot" style="background:#ff7eb6"></i> Пара / Любовь</span>
+                            <span class="bm2_legend_item"><i class="bm2_legend_dot" style="background:#ffd700"></i> Брак</span>
+                            <span class="bm2_legend_item"><i class="bm2_legend_dot" style="background:#7aa2f7"></i> Дружба</span>
+                            <span class="bm2_legend_item"><i class="bm2_legend_dot" style="background:#9ece6a"></i> Семья / Дети</span>
+                            <span class="bm2_legend_item"><i class="bm2_legend_dot" style="background:#f7768e"></i> Вражда (-%)</span>
                         </div>
                     </div>
                 </div>
 
-                <!-- PANE 3: NARRATIVE STYLE & CUSTOM SLIDERS -->
-                <div class="bm2_pane" id="bm2_pane_style"></div>
+                <div id="bm2_pane_style" class="bm2_pane"></div>
 
-                <!-- PANE 4: THEMES & LIVE PROMPT PREVIEW -->
-                <div class="bm2_pane" id="bm2_pane_theme"></div>
+                <div id="bm2_pane_theme" class="bm2_pane"></div>
             </div>
         </div>
     `;
@@ -2019,7 +2124,7 @@ function renderAllPanes() {
 }
 
 /**
- * Render Pane 1: Participants, Structured Relationship Directory, Custom Roles & Bipolar Meter
+ * Render Pane 1: RP Timeline Date Card, Participants, Structured Relationship Directory, Custom Roles & Bipolar Meter
  */
 function renderRelationshipsPane() {
     const pane = document.getElementById('bm2_pane_rel');
@@ -2040,37 +2145,38 @@ function renderRelationshipsPane() {
             const roleTag = n.type === 'bot' ? 'Бот' : n.type === 'persona' ? 'Персона' : 'NPC';
             const initials = escapeHtml((n.name || '?').slice(0, 2).toUpperCase());
             const avatarInner = n.avatar
-                ? `<img src="${escapeAttr(n.avatar)}" alt="" />`
+                ? `<img src="${escapeAttr(n.avatar)}" alt="${escapeAttr(n.name)}" />`
                 : `<span>${initials}</span>`;
             const delBtn =
                 n.type === 'npc'
-                    ? `<button type="button" class="bm2_icon_sm_btn bm2_del_node_btn" data-id="${escapeAttr(n.id)}" title="Удалить NPC">🗑️</button>`
+                    ? `<button class="bm2_icon_sm_btn bm2_del_node_btn" data-id="${escapeAttr(n.id)}" title="Удалить NPC">🗑️</button>`
                     : '';
             return `
-            <div class="bm2_node_pill">
-                <div class="bm2_node_avatar">${avatarInner}</div>
-                <div class="bm2_node_info">
-                    <span class="bm2_node_name">${escapeHtml(n.name)}</span>
-                    <span class="bm2_node_role_tag">${roleTag}</span>
+                <div class="bm2_node_pill">
+                    <div class="bm2_node_avatar">${avatarInner}</div>
+                    <div class="bm2_node_info">
+                        <span class="bm2_node_name">${escapeHtml(n.name)}</span>
+                        <span class="bm2_node_role_tag">${roleTag}</span>
+                    </div>
+                    <div class="bm2_node_actions">
+                        <button class="bm2_icon_sm_btn bm2_upload_avatar_btn" data-id="${escapeAttr(n.id)}" title="Загрузить фото из галереи телефона">📷</button>
+                        <button class="bm2_icon_sm_btn bm2_url_avatar_btn" data-id="${escapeAttr(n.id)}" title="Вставить ссылку (URL) на фото">🔗</button>
+                        ${delBtn}
+                    </div>
                 </div>
-                <div class="bm2_node_actions">
-                    <button type="button" class="bm2_icon_sm_btn bm2_upload_avatar_btn" data-id="${escapeAttr(n.id)}" title="Загрузить фото с телефона">📷</button>
-                    <button type="button" class="bm2_icon_sm_btn bm2_url_avatar_btn" data-id="${escapeAttr(n.id)}" title="Вставить ссылку URL на фото или очистить">🔗</button>
-                    ${delBtn}
-                </div>
-            </div>`;
+            `;
         })
         .join('');
 
     // 2. Character Filter Pills
     const filterChipsHtml = [
-        `<button type="button" class="bm2_filter_chip ${activeCharFilterId === 'all' ? 'bm2_active' : ''}" data-char-id="all">
+        `<button class="bm2_filter_chip ${activeCharFilterId === 'all' ? 'bm2_active' : ''}" data-char-id="all">
             Все связи (${prof.relationships.length})
         </button>`,
         ...prof.nodes.map((n) => {
             const cnt = prof.relationships.filter((r) => r.fromId === n.id || r.toId === n.id).length;
             const isAct = activeCharFilterId === n.id;
-            return `<button type="button" class="bm2_filter_chip ${isAct ? 'bm2_active' : ''}" data-char-id="${escapeAttr(n.id)}">
+            return `<button class="bm2_filter_chip ${isAct ? 'bm2_active' : ''}" data-char-id="${escapeAttr(n.id)}">
                 ${escapeHtml(n.name)} (${cnt})
             </button>`;
         }),
@@ -2104,8 +2210,8 @@ function renderRelationshipsPane() {
 
     // Always-visible Crush / Romantic Mutuality & Secrecy selector for ANY relationship status
     const crushMutualityHtml = `
-        <div style="margin-top:4px;padding:10px;border-radius:10px;background:rgba(255, 158, 100, 0.12);border:1px solid rgba(255, 158, 100, 0.4);">
-            <label class="bm2_label" style="color:#ff9e64;font-weight:700;">💘 Подтип влюблённости / симпатии и тайны (${escapeHtml(fromNodeObj.name)} ➔ ${escapeHtml(toNodeObj.name)}):</label>
+        <div style="margin-top:4px; padding:10px; border-radius:10px; background:rgba(255,158,100,0.08); border:1px solid rgba(255,158,100,0.35);">
+            <label class="bm2_label" style="color:#ff9e64;">💘 Подтип влюблённости / симпатии и тайны (${escapeHtml(fromNodeObj.name)} ➔ ${escapeHtml(toNodeObj.name)}):</label>
             <select id="bm2_crush_mutuality_select" class="bm2_select">
                 ${Object.entries(CRUSH_MUTUALITY)
                     .map(([k, v]) => {
@@ -2120,20 +2226,22 @@ function renderRelationshipsPane() {
                     })
                     .join('')}
             </select>
-            <span class="bm2_slider_hint" style="display:block;margin-top:4px;">
+            <div class="bm2_settings_hint" style="margin-top:5px;">
                 Доступно для любого статуса (Друзья, Враги, Соседи, Коллеги и др.). При выборе «Тайно влюблён(а)» второй персонаж и остальные NPC НЕ знают и не догадываются об этих чувствах.
-            </span>
-        </div>`;
+            </div>
+        </div>
+    `;
 
     const dateInputsHtml = (roleMeta.dateFields || [])
         .map((df) => {
             const val = rel.dates?.[df.key] || '';
             return `
-            <div>
-                <label class="bm2_label">${escapeHtml(df.label)}</label>
-                <input type="text" class="bm2_input bm2_date_input" data-date-key="${df.key}"
-                       placeholder="Напр. 14 февраля / Осень 2024" value="${escapeAttr(val)}" />
-            </div>`;
+                <div>
+                    <label class="bm2_label">${escapeHtml(df.label)}</label>
+                    <input type="text" class="bm2_input bm2_date_input" data-date-key="${escapeAttr(df.key)}"
+                           placeholder="Напр. 14 февраля / Осень 2024" value="${escapeAttr(val)}" />
+                </div>
+            `;
         })
         .join('');
 
@@ -2143,13 +2251,14 @@ function renderRelationshipsPane() {
             : rel.memories
                   .map(
                       (m) => `
-                <div class="bm2_memory_item">
-                    <div>
-                        <span class="bm2_memory_date">📅 ${escapeHtml(m.date || 'Памятный момент')}</span>
-                        <span>${escapeHtml(m.text)}</span>
+                    <div class="bm2_memory_item">
+                        <div>
+                            <span class="bm2_memory_date">📅 ${escapeHtml(m.date || getFallbackRpDateLabel(prof))}</span>
+                            <span>${escapeHtml(m.text)}</span>
+                        </div>
+                        <button class="bm2_icon_btn bm2_del_mem_btn" data-id="${m.id}" title="Удалить запись">🗑️</button>
                     </div>
-                    <button type="button" class="bm2_icon_btn bm2_del_mem_btn" data-id="${m.id}" title="Удалить">🗑️</button>
-                </div>`
+                `
                   )
                   .join('');
 
@@ -2160,45 +2269,65 @@ function renderRelationshipsPane() {
     const satColor = sat > 0 ? '#9ece6a' : sat < 0 ? '#f7768e' : 'var(--bm2-text-muted)';
 
     pane.innerHTML = `
-        <!-- CARD 1: PARTICIPANTS & NPCs + JSON BACKUP -->
+        <!-- NEW: In-Universe Roleplay Date & Timeline Bar -->
+        <div class="bm2_card bm2_rp_date_card">
+            <div class="bm2_card_header">
+                <h4 class="bm2_card_title">⏳ Текущая дата и время в ролевой (RP Timeline)</h4>
+                <button id="bm2_detect_rp_date_btn" class="bm2_btn bm2_btn_primary" style="min-height:34px; padding:5px 10px; font-size:0.78rem;">
+                    ✨ Считать дату ИИ
+                </button>
+            </div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                <input type="text" id="bm2_rp_date_input" class="bm2_input" style="flex:1; min-width:190px;"
+                       placeholder="Напр. 14 октября, Пятница, вечер (или День 3)"
+                       value="${escapeAttr(prof.rpDate || '')}" />
+                <button id="bm2_save_rp_date_btn" class="bm2_btn" style="min-height:44px; padding:8px 13px;">
+                    💾 Задать
+                </button>
+            </div>
+            <label class="bm2_rp_date_toggle">
+                <input type="checkbox" id="bm2_rp_date_auto_cb" ${s.rpDateAutoTrack !== false ? 'checked' : ''} />
+                <span>Автоматически обновлять дату РП нейросетью по ходу сюжета и подписывать ею ключевые события (вместо реальной даты телефона)</span>
+            </label>
+        </div>
+
         <div class="bm2_card">
             <div class="bm2_card_header">
                 <h4 class="bm2_card_title">👥 Участники и NPC (${prof.nodes.length})</h4>
-                <div style="display:flex;gap:5px;flex-wrap:wrap;">
-                    <button type="button" class="bm2_btn" id="bm2_export_json_btn" style="flex:0 0 auto;min-height:32px;padding:4px 9px;" title="Скачать все связи и NPC этого персонажа в файл JSON">
+                <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                    <button id="bm2_export_json_btn" class="bm2_btn" style="min-height:34px; padding:5px 9px; font-size:0.78rem;" title="Скачать все связи и NPC в файл JSON">
                         📥 Экспорт
                     </button>
-                    <button type="button" class="bm2_btn" id="bm2_import_json_btn" style="flex:0 0 auto;min-height:32px;padding:4px 9px;" title="Загрузить связи и NPC из файла JSON">
+                    <button id="bm2_import_json_btn" class="bm2_btn" style="min-height:34px; padding:5px 9px; font-size:0.78rem;" title="Загрузить связи и NPC из файла JSON">
                         📤 Импорт
                     </button>
-                    <button type="button" class="bm2_btn bm2_btn_primary" id="bm2_add_npc_btn" style="flex:0 0 auto;min-height:32px;padding:4px 10px;">
+                    <button id="bm2_add_npc_btn" class="bm2_btn bm2_btn_primary" style="min-height:34px; padding:5px 10px;">
                         + NPC
                     </button>
                 </div>
             </div>
             <div class="bm2_nodes_strip">${nodesHtml}</div>
-            <span class="bm2_slider_hint">Нажмите 📷 для загрузки фото с телефона или 🔗 для URL.</span>
+            <div class="bm2_settings_hint">Нажмите 📷 для загрузки фото с телефона или 🔗 для URL.</div>
         </div>
 
-        <!-- CARD 2: STRUCTURED RELATIONSHIP DIRECTORY & EDITOR -->
         <div class="bm2_card">
             <div class="bm2_card_header">
                 <h4 class="bm2_card_title">🔗 Каталог связей (${prof.relationships.length})</h4>
-                <div style="display:flex;gap:6px;">
-                    <button type="button" class="bm2_btn bm2_btn_primary" id="bm2_toggle_new_rel_drawer_btn" style="min-height:32px;padding:4px 10px;">
+                <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                    <button id="bm2_toggle_new_rel_drawer_btn" class="bm2_btn bm2_btn_primary" style="min-height:36px; padding:5px 11px;">
                         + Добавить связь вручную
                     </button>
                     ${
                         prof.relationships.length > 1
-                            ? `<button type="button" class="bm2_btn bm2_btn_danger" id="bm2_del_rel_btn" style="min-height:32px;padding:4px 10px;" title="Удалить текущую выбранную связь">🗑️</button>`
+                            ? `<button id="bm2_del_rel_btn" class="bm2_btn bm2_btn_danger" style="min-height:36px; padding:5px 10px;" title="Удалить выбранную связь">🗑️</button>`
                             : ''
                     }
                 </div>
             </div>
 
-            <!-- Manual New Link Drawer -->
-            <div class="bm2_new_link_drawer ${isNewLinkDrawerOpen ? 'bm2_open' : ''}" id="bm2_new_link_drawer">
-                <div style="font-size:0.82rem;font-weight:700;color:var(--bm2-accent);">➕ Создание новой связи вручную:</div>
+            <!-- Manual New Relationship Creation Drawer -->
+            <div id="bm2_new_link_drawer" class="bm2_new_link_drawer ${isNewLinkDrawerOpen ? 'bm2_open' : ''}">
+                <div style="font-size:0.86rem; font-weight:700; color:var(--bm2-accent);">➕ Создание новой связи вручную:</div>
                 <div class="bm2_grid_2">
                     <div>
                         <label class="bm2_label">Кто (Участник 1):</label>
@@ -2222,42 +2351,42 @@ function renderRelationshipsPane() {
                     </select>
                 </div>
                 <div class="bm2_btn_row">
-                    <button type="button" class="bm2_btn bm2_btn_primary" id="bm2_confirm_create_rel_btn">✓ Создать связь</button>
-                    <button type="button" class="bm2_btn" id="bm2_cancel_create_rel_btn">Отмена</button>
+                    <button id="bm2_confirm_create_rel_btn" class="bm2_btn bm2_btn_primary">✓ Создать связь</button>
+                    <button id="bm2_cancel_create_rel_btn" class="bm2_btn">Отмена</button>
                 </div>
             </div>
 
-            <!-- Filter by Character Pills -->
+            <!-- Filter Bar by Character & Grouping Mode Toggle -->
             <div>
-                <div class="bm2_group_mode_row" style="margin-bottom:5px;">
+                <div class="bm2_group_mode_row" style="margin-bottom:6px;">
                     <span class="bm2_label" style="margin:0;">Фильтр по персонажу:</span>
                     <div class="bm2_mode_switch">
-                        <button type="button" class="bm2_mode_btn ${groupMode === 'category' ? 'bm2_active' : ''}" data-mode="category">📂 По разделам</button>
-                        <button type="button" class="bm2_mode_btn ${groupMode === 'character' ? 'bm2_active' : ''}" data-mode="character">👤 По персонажам</button>
+                        <button class="bm2_mode_btn ${groupMode === 'category' ? 'bm2_active' : ''}" data-mode="category">📂 По разделам</button>
+                        <button class="bm2_mode_btn ${groupMode === 'character' ? 'bm2_active' : ''}" data-mode="character">👤 По персонажам</button>
                     </div>
                 </div>
                 <div class="bm2_filter_bar">${filterChipsHtml}</div>
             </div>
 
-            <!-- Visual Categorized Directory -->
+            <!-- Visual Structured Directory -->
             <div class="bm2_directory_box">
                 ${visualDirectoryHtml}
             </div>
 
-            <!-- Fallback Native Grouped Select -->
+            <!-- Native Select with <optgroup> Sections -->
             <div>
                 <label class="bm2_label">Или выберите из выпадающего списка (с разделами):</label>
                 <select id="bm2_rel_selector" class="bm2_select">${groupedRelSelectHtml}</select>
             </div>
+        </div>
 
-            <hr style="border:none;border-top:1px solid var(--bm2-border);margin:2px 0;" />
-
-            <!-- Active Pair Editor Header -->
-            <div style="font-size:0.86rem;font-weight:700;color:var(--bm2-accent);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;">
-                <span>✏️ Редактирование: ${escapeHtml(fromNodeObj.name)} ${roleMeta.directed ? '➔' : '↔'} ${escapeHtml(toNodeObj.name)}</span>
+        <!-- Active Relationship Editor Card -->
+        <div class="bm2_card">
+            <div class="bm2_card_header">
+                <h4 class="bm2_card_title">✏️ Редактирование: ${escapeHtml(fromNodeObj.name)} ${roleMeta.directed ? '➔' : '↔'} ${escapeHtml(toNodeObj.name)}</h4>
                 ${
                     roleMeta.isCustom
-                        ? `<button type="button" class="bm2_btn bm2_btn_danger" id="bm2_del_custom_role_btn" style="flex:0 0 auto;min-height:28px;padding:2px 8px;font-size:0.74rem;">Удалить свой статус «${escapeHtml(roleMeta.label)}»</button>`
+                        ? `<button id="bm2_del_custom_role_btn" class="bm2_btn bm2_btn_danger" style="min-height:32px; padding:4px 8px; font-size:0.75rem;">Удалить свой статус «${escapeHtml(roleMeta.label)}»</button>`
                         : ''
                 }
             </div>
@@ -2274,9 +2403,9 @@ function renderRelationshipsPane() {
             </div>
 
             <div>
-                <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:3px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:4px; flex-wrap:wrap;">
                     <label class="bm2_label" style="margin:0;">Статус / Роль связи (25 видов + свои):</label>
-                    <button type="button" class="bm2_btn" id="bm2_create_custom_role_btn" style="flex:0 0 auto;min-height:28px;padding:2px 9px;font-size:0.75rem;border-color:var(--bm2-accent);color:var(--bm2-accent);">
+                    <button id="bm2_create_custom_role_btn" class="bm2_btn" style="min-height:30px; padding:3px 9px; font-size:0.76rem;">
                         ➕ Свой статус вручную
                     </button>
                 </div>
@@ -2288,23 +2417,22 @@ function renderRelationshipsPane() {
             <div class="bm2_meter_wrap">
                 <div class="bm2_meter_top">
                     <span>Шкала отношений (-100% Вражда ... +100% Любовь)</span>
-                    <span id="bm2_sat_label" style="color:${satColor};font-weight:700;">${satDisplay}</span>
+                    <span id="bm2_sat_label" style="color:${satColor}">${satDisplay}</span>
                 </div>
                 <div class="bm2_meter_bipolar_bar">
-                    <div class="bm2_meter_zero_tick" title="0% Нейтрально"></div>
-                    <div class="bm2_meter_fill_neg" id="bm2_sat_fill_neg" style="width: ${negWidth};"></div>
-                    <div class="bm2_meter_fill_pos" id="bm2_sat_fill_pos" style="width: ${posWidth};"></div>
+                    <div class="bm2_meter_zero_tick"></div>
+                    <div id="bm2_sat_fill_neg" class="bm2_meter_fill_neg" style="width:${negWidth}"></div>
+                    <div id="bm2_sat_fill_pos" class="bm2_meter_fill_pos" style="width:${posWidth}"></div>
                 </div>
                 <div class="bm2_meter_controls">
-                    <button type="button" class="bm2_btn" id="bm2_sat_minus" style="flex:0 0 44px;">-5%</button>
-                    <input type="range" id="bm2_sat_range" class="bm2_range" min="-100" max="100" step="1" value="${sat}" />
-                    <button type="button" class="bm2_btn" id="bm2_sat_zero" style="flex:0 0 40px;" title="Сбросить в 0%">0%</button>
-                    <button type="button" class="bm2_btn" id="bm2_sat_plus" style="flex:0 0 44px;">+5%</button>
+                    <button id="bm2_sat_minus" class="bm2_btn" style="min-width:46px;">-5%</button>
+                    <input id="bm2_sat_range" type="range" min="-100" max="100" step="1" value="${sat}" class="bm2_range" />
+                    <button id="bm2_sat_zero" class="bm2_btn" style="min-width:42px;">0%</button>
+                    <button id="bm2_sat_plus" class="bm2_btn" style="min-width:46px;">+5%</button>
                 </div>
             </div>
         </div>
 
-        <!-- CARD 3: DYNAMIC DATES -->
         <div class="bm2_card">
             <h4 class="bm2_card_title">📅 Значимые даты (${escapeHtml(roleMeta.label)})</h4>
             <div class="bm2_grid_2">
@@ -2312,24 +2440,54 @@ function renderRelationshipsPane() {
             </div>
         </div>
 
-        <!-- CARD 4: SHARED MEMORIES -->
         <div class="bm2_card">
             <div class="bm2_card_header">
                 <h4 class="bm2_card_title">🧠 Ключевые события этой пары</h4>
-                <button type="button" class="bm2_btn bm2_btn_primary" id="bm2_analyze_now_btn" style="flex:0 0 auto;min-height:32px;padding:4px 10px;">
+                <button id="bm2_analyze_now_btn" class="bm2_btn bm2_btn_primary" style="min-height:34px; padding:5px 10px;">
                     ✨ Сканировать все связи ИИ
                 </button>
             </div>
-            <div class="bm2_memory_list" id="bm2_memory_list">
+            <div class="bm2_memory_list">
                 ${memoriesHtml}
             </div>
             <div class="bm2_grid_2" style="margin-top:4px;">
-                <input type="text" id="bm2_new_mem_date" class="bm2_input" placeholder="Дата (напр. Глава 3 / Вчера)" />
+                <input type="text" id="bm2_new_mem_date" class="bm2_input"
+                       placeholder="Дата в РП (по умолч.: ${escapeAttr(getFallbackRpDateLabel(prof))})"
+                       value="${escapeAttr(prof.rpDate || '')}" />
                 <input type="text" id="bm2_new_mem_text" class="bm2_input" placeholder="Что важного произошло между ними..." />
             </div>
-            <button type="button" class="bm2_btn" id="bm2_add_mem_btn">+ Добавить памятное событие</button>
+            <button id="bm2_add_mem_btn" class="bm2_btn">+ Добавить памятное событие</button>
         </div>
     `;
+
+    // Bind In-Universe RP Date Controls
+    const rpDateInp = pane.querySelector('#bm2_rp_date_input');
+    const saveRpDate = () => {
+        if (!rpDateInp) return;
+        prof.rpDate = rpDateInp.value.trim();
+        saveSettings();
+        const memDateInp = document.getElementById('bm2_new_mem_date');
+        if (memDateInp) {
+            memDateInp.value = prof.rpDate;
+            memDateInp.placeholder = `Дата в РП (по умолч.: ${getFallbackRpDateLabel(prof)})`;
+        }
+        if (window.toastr) {
+            window.toastr.success(
+                prof.rpDate ? `Дата в ролевой установлена: ${prof.rpDate}` : 'Дата в ролевой очищена',
+                '⏳ BlueMoon'
+            );
+        }
+    };
+
+    pane.querySelector('#bm2_save_rp_date_btn')?.addEventListener('click', saveRpDate);
+    rpDateInp?.addEventListener('change', saveRpDate);
+
+    pane.querySelector('#bm2_rp_date_auto_cb')?.addEventListener('change', (e) => {
+        s.rpDateAutoTrack = e.target.checked;
+        saveSettings();
+    });
+
+    pane.querySelector('#bm2_detect_rp_date_btn')?.addEventListener('click', detectRpDateWithAI);
 
     // Bind JSON Export/Import
     pane.querySelector('#bm2_export_json_btn')?.addEventListener('click', exportRelationshipsToJson);
@@ -2605,14 +2763,16 @@ function renderRelationshipsPane() {
         });
     });
 
+    // Add Memory manually: strictly uses In-Universe RP Date (NEVER real-world phone date)
     pane.querySelector('#bm2_add_mem_btn').addEventListener('click', () => {
         const dEl = document.getElementById('bm2_new_mem_date');
         const tEl = document.getElementById('bm2_new_mem_text');
         const text = tEl.value.trim();
         if (!text) return;
+        const chosenRpDate = dEl.value.trim() || getFallbackRpDateLabel(prof);
         rel.memories.push({
             id: Date.now(),
-            date: dEl.value.trim() || new Date().toLocaleDateString('ru-RU'),
+            date: chosenRpDate,
             text,
         });
         saveSettings();
@@ -2629,8 +2789,8 @@ function renderRelationshipsPane() {
     });
 
     pane.querySelector('#bm2_analyze_now_btn').addEventListener('click', async () => {
-        if (window.toastr) window.toastr.info('Анализирую последнюю сцену по всем связям...', '🌙 BlueMoon');
-        await analyzeAllRelationshipsDelta();
+        if (window.toastr) window.toastr.info('Анализирую последнюю сцену, дату РП и все связи...', '🌙 BlueMoon');
+        await analyzeAllRelationshipsDelta(true);
     });
 }
 
@@ -2991,8 +3151,9 @@ function renderStylePane() {
             (g, idx) => `
             <span class="bm2_genre_chip">
                 ${escapeHtml(g)}
-                <button type="button" class="bm2_remove_genre_btn" data-idx="${idx}" title="Убрать жанр">✕</button>
-            </span>`
+                <button class="bm2_remove_genre_btn" data-idx="${idx}" title="Убрать жанр">✕</button>
+            </span>
+        `
         )
         .join('');
 
@@ -3003,30 +3164,34 @@ function renderStylePane() {
     const builtinSlidersHtml = BUILTIN_STYLE_SLIDERS.map((sl) => {
         const val = Number(st.sliders?.[sl.id] ?? sl.defaultVal);
         return `
-        <div class="bm2_slider_row">
-            <div class="bm2_slider_head">
-                <span>${escapeHtml(sl.label)}</span>
-                <span class="bm2_slider_val" id="bm2_sl_val_${sl.id}">${val}%</span>
+            <div class="bm2_slider_row">
+                <div class="bm2_slider_head">
+                    <span>${escapeHtml(sl.label)}</span>
+                    <span class="bm2_slider_val" id="bm2_sl_val_${sl.id}">${val}%</span>
+                </div>
+                <input type="range" min="0" max="100" step="5" value="${val}"
+                       class="bm2_range bm2_style_slider" data-slider-id="${sl.id}" />
+                <div class="bm2_slider_hint">${escapeHtml(sl.hint)}</div>
             </div>
-            <input type="range" class="bm2_range bm2_style_slider" data-slider-id="${sl.id}" min="0" max="100" step="5" value="${val}" />
-            <span class="bm2_slider_hint">${escapeHtml(sl.hint)}</span>
-        </div>`;
+        `;
     }).join('');
 
     const customSlidersHtml = (st.customSliders || [])
         .map(
             (csl, idx) => `
-        <div class="bm2_slider_row" style="border-color: var(--bm2-accent-2);">
-            <div class="bm2_slider_head">
-                <span>✨ ${escapeHtml(csl.name)}</span>
-                <div style="display:flex;align-items:center;gap:8px;">
-                    <span class="bm2_slider_val" id="bm2_csl_val_${idx}">${Number(csl.value ?? 50)}%</span>
-                    <button type="button" class="bm2_icon_sm_btn bm2_del_custom_slider_btn" data-idx="${idx}" title="Удалить ползунок">🗑️</button>
+            <div class="bm2_slider_row">
+                <div class="bm2_slider_head">
+                    <span>✨ ${escapeHtml(csl.name)}</span>
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <span class="bm2_slider_val" id="bm2_csl_val_${idx}">${Number(csl.value ?? 50)}%</span>
+                        <button class="bm2_icon_sm_btn bm2_del_custom_slider_btn" data-idx="${idx}" title="Удалить ползунок">🗑️</button>
+                    </div>
                 </div>
+                <input type="range" min="0" max="100" step="5" value="${Number(csl.value ?? 50)}"
+                       class="bm2_range bm2_custom_slider_input" data-idx="${idx}" />
+                <div class="bm2_slider_hint">Инструкция ИИ: ${escapeHtml(csl.prompt)}</div>
             </div>
-            <input type="range" class="bm2_range bm2_custom_slider_input" data-idx="${idx}" min="0" max="100" step="5" value="${Number(csl.value ?? 50)}" />
-            <span class="bm2_slider_hint">Инструкция ИИ: ${escapeHtml(csl.prompt)}</span>
-        </div>`
+        `
         )
         .join('');
 
@@ -3037,25 +3202,25 @@ function renderStylePane() {
             <div>
                 <label class="bm2_label">Активные жанры (можно комбинировать несколько):</label>
                 <div class="bm2_genre_tags_wrap">
-                    ${activeGenreChipsHtml || '<span class="bm2_slider_hint">Жанры не выбраны</span>'}
+                    ${activeGenreChipsHtml || '<span class="bm2_settings_hint">Жанры не выбраны</span>'}
                 </div>
             </div>
 
-            <div class="bm2_grid_2" style="margin-top:4px;">
-                <div style="display:flex;gap:6px;">
+            <div class="bm2_grid_2">
+                <div style="display:flex; gap:6px;">
                     <select id="bm2_genre_picker" class="bm2_select">${genreSelectOpts}</select>
-                    <button type="button" class="bm2_btn bm2_btn_primary" id="bm2_add_picked_genre_btn" style="flex:0 0 auto;">+ Жанр</button>
+                    <button id="bm2_add_picked_genre_btn" class="bm2_btn bm2_btn_primary" style="white-space:nowrap;">+ Жанр</button>
                 </div>
-                <div style="display:flex;gap:6px;">
-                    <input type="text" id="bm2_custom_genre_inp" class="bm2_input" placeholder="Или введите свой жанр..." />
-                    <button type="button" class="bm2_btn" id="bm2_add_custom_genre_btn" style="flex:0 0 auto;">＋</button>
+                <div style="display:flex; gap:6px;">
+                    <input type="text" id="bm2_custom_genre_inp" class="bm2_input" placeholder="Или впишите свой жанр..." />
+                    <button id="bm2_add_custom_genre_btn" class="bm2_btn">＋</button>
                 </div>
             </div>
 
             <div>
                 <label class="bm2_label">Стиль автора / Нарративная инструкция (обязательный фильтр прозы):</label>
                 <textarea id="bm2_author_input" class="bm2_textarea"
-                    placeholder="Напр.: Пиши в стиле Достоевского / Ремарка: глубокий психологизм, живые диалоги без клише...">${escapeHtml(st.authorStyle || '')}</textarea>
+                          placeholder="Напр.: Пиши в стиле мрачного психологического реализма с акцентом на микромимику, живые неидеальные диалоги и сенсорные детали...">${escapeHtml(st.authorStyle || '')}</textarea>
             </div>
         </div>
 
@@ -3068,10 +3233,10 @@ function renderStylePane() {
         <div class="bm2_card">
             <h4 class="bm2_card_title">➕ Создать свою плашку ползунка</h4>
             <div class="bm2_grid_2">
-                <input type="text" id="bm2_new_csl_name" class="bm2_input" placeholder="Название (напр. Юмор и сарказм)" />
-                <input type="text" id="bm2_new_csl_prompt" class="bm2_input" placeholder="Правило для ИИ (напр. Количество иронии в диалогах)" />
+                <input type="text" id="bm2_new_csl_name" class="bm2_input" placeholder="Название (напр. Сарказм / Готика)" />
+                <input type="text" id="bm2_new_csl_prompt" class="bm2_input" placeholder="Что требовать от ИИ при 100%..." />
             </div>
-            <button type="button" class="bm2_btn bm2_btn_primary" id="bm2_add_csl_btn">+ Добавить свой ползунок</button>
+            <button id="bm2_add_csl_btn" class="bm2_btn bm2_btn_primary">+ Добавить свой ползунок</button>
         </div>
 
         <div class="bm2_card">
@@ -3084,8 +3249,8 @@ function renderStylePane() {
                 <input type="text" id="bm2_preset_name_inp" class="bm2_input" placeholder="Имя нового пресета..." />
             </div>
             <div class="bm2_btn_row">
-                <button type="button" class="bm2_btn bm2_btn_primary" id="bm2_save_preset_btn">Сохранить пресет</button>
-                <button type="button" class="bm2_btn bm2_btn_danger" id="bm2_del_preset_btn">Удалить пресет</button>
+                <button id="bm2_save_preset_btn" class="bm2_btn bm2_btn_primary">Сохранить пресет</button>
+                <button id="bm2_del_preset_btn" class="bm2_btn bm2_btn_danger">Удалить пресет</button>
             </div>
         </div>
     `;
@@ -3216,21 +3381,21 @@ function renderThemePane() {
         .map(([key, t]) => {
             const isActive = s.activeTheme === key;
             return `
-            <div class="bm2_theme_card ${isActive ? 'bm2_theme_active' : ''}"
-                 data-theme-key="${key}"
-                 style="background: linear-gradient(145deg, ${t.bgCard}, ${t.bgMain}); color: ${t.textMain};">
-                <div class="bm2_theme_card_top">
-                    <span class="bm2_theme_card_title" style="color:${t.accent};">${escapeHtml(t.name)}</span>
-                    ${isActive ? '<span>✓</span>' : ''}
+                <div class="bm2_theme_card ${isActive ? 'bm2_theme_active' : ''}" data-theme-key="${key}"
+                     style="background:${t.bgCard}; border-color:${isActive ? t.accent : 'rgba(255,255,255,0.14)'};">
+                    <div class="bm2_theme_card_top">
+                        <span class="bm2_theme_card_title" style="color:${t.textMain}">${escapeHtml(t.name)}</span>
+                        ${isActive ? `<span style="color:${t.accent}; font-weight:800;">✓</span>` : ''}
+                    </div>
+                    <span class="bm2_theme_card_desc" style="color:${t.textMuted}">${escapeHtml(t.desc || '')}</span>
+                    <div class="bm2_theme_swatches">
+                        <span class="bm2_swatch_dot" style="background:${t.bgMain}"></span>
+                        <span class="bm2_swatch_dot" style="background:${t.bgCard}"></span>
+                        <span class="bm2_swatch_dot" style="background:${t.accent}"></span>
+                        <span class="bm2_swatch_dot" style="background:${t.accent2}"></span>
+                    </div>
                 </div>
-                <span class="bm2_theme_card_desc" style="color:${t.textMuted};">${escapeHtml(t.desc || '')}</span>
-                <div class="bm2_theme_swatches">
-                    <i class="bm2_swatch_dot" style="background:${t.bgMain}" title="Фон"></i>
-                    <i class="bm2_swatch_dot" style="background:${t.bgCard}" title="Карточки"></i>
-                    <i class="bm2_swatch_dot" style="background:${t.accent}" title="Акцент 1"></i>
-                    <i class="bm2_swatch_dot" style="background:${t.accent2}" title="Акцент 2"></i>
-                </div>
-            </div>`;
+            `;
         })
         .join('');
 
@@ -3239,7 +3404,7 @@ function renderThemePane() {
     pane.innerHTML = `
         <div class="bm2_card">
             <h4 class="bm2_card_title">🎨 Галерея тем оформления (16 стилей)</h4>
-            <p class="bm2_settings_hint" style="margin:0;">Нажмите на любую карточку, чтобы мгновенно переключить атмосферу окна и древа связей:</p>
+            <div class="bm2_settings_hint">Нажмите на любую карточку, чтобы мгновенно переключить атмосферу окна и древа связей:</div>
             <div class="bm2_theme_gallery">
                 ${galleryCardsHtml}
             </div>
@@ -3250,29 +3415,29 @@ function renderThemePane() {
             <div class="bm2_grid_2">
                 <div>
                     <label class="bm2_label">Фон окна</label>
-                    <input type="color" id="bm2_col_bg" class="bm2_input" value="${ct.bgMain}" />
+                    <input type="color" id="bm2_col_bg" class="bm2_input" value="${ct.bgMain}" style="height:44px; padding:4px;" />
                 </div>
                 <div>
                     <label class="bm2_label">Фон карточек</label>
-                    <input type="color" id="bm2_col_card" class="bm2_input" value="${ct.bgCard}" />
+                    <input type="color" id="bm2_col_card" class="bm2_input" value="${ct.bgCard}" style="height:44px; padding:4px;" />
                 </div>
                 <div>
                     <label class="bm2_label">Основной акцент (Свечение)</label>
-                    <input type="color" id="bm2_col_acc" class="bm2_input" value="${ct.accent}" />
+                    <input type="color" id="bm2_col_acc" class="bm2_input" value="${ct.accent}" style="height:44px; padding:4px;" />
                 </div>
                 <div>
                     <label class="bm2_label">Второй акцент (Градиент)</label>
-                    <input type="color" id="bm2_col_acc2" class="bm2_input" value="${ct.accent2 || ct.accent}" />
+                    <input type="color" id="bm2_col_acc2" class="bm2_input" value="${ct.accent2}" style="height:44px; padding:4px;" />
                 </div>
             </div>
         </div>
 
         <div class="bm2_card">
             <h4 class="bm2_card_title">👁️ Живой просмотр системного промпта для ИИ</h4>
-            <p class="bm2_settings_hint" style="margin:0;">
+            <div class="bm2_settings_hint">
                 Этот блок автоматически вшивается в контекст нейросети перед каждым ответом (на глубине Depth = ${s.injectionDepth}):
-            </p>
-            <div class="bm2_prompt_preview" id="bm2_live_prompt_box">${escapeHtml(combinedPrompt || '(Инъекция отключена)')}</div>
+            </div>
+            <div id="bm2_live_prompt_box" class="bm2_prompt_preview">${escapeHtml(combinedPrompt || '(Инъекция отключена)')}</div>
         </div>
     `;
 
@@ -3413,7 +3578,7 @@ function init() {
         });
 
         eventSource.on(event_types.MESSAGE_RECEIVED, () => {
-            setTimeout(() => analyzeAllRelationshipsDelta(), 700);
+            setTimeout(() => analyzeAllRelationshipsDelta(false), 700);
         });
 
         if (event_types.GENERATION_STARTED) {
@@ -3440,7 +3605,7 @@ function init() {
         }
     }
 
-    console.log(`[${MODULE_NAME}] BlueMoon v2.5.5 loaded.`);
+    console.log(`[${MODULE_NAME}] BlueMoon v2.6.0 loaded.`);
 }
 
 jQuery(() => {
